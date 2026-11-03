@@ -1,0 +1,295 @@
+# =============================================================================
+# beauty-leads configuration
+#
+# Every number in this file is an ASSUMPTION. They are reasonable starting
+# points, not facts. Tune them as you learn from real sales conversations
+# (e.g. "barbershop owner on Vagaro pays ~$200/location").
+# All money in the report is CAD per month unless stated otherwise.
+# =============================================================================
+
+database: data/leads.db
+http_cache: data/http_cache.sqlite
+
+http:
+  # Identify yourself honestly. Put a real contact email here before running.
+  user_agent: "beauty-leads/0.1 (B2B lead research; contact: CHANGE-ME@example.com)"
+  timeout_seconds: 15
+  per_host_delay_seconds: 1.5     # politeness delay between requests to the same site
+  respect_robots_txt: true
+  max_page_bytes: 2000000         # cap for crawled websites
+  max_api_bytes: 300000000        # cap for API responses (Overpass / licence exports are large)
+  cache_ttl_hours: 168            # re-use fetched pages for a week (saves time + API money)
+  website_workers: 8              # parallel website checks (each host still rate-limited)
+
+# -----------------------------------------------------------------------------
+# Where to look
+# -----------------------------------------------------------------------------
+region:
+  province: BC
+  # Google Places is searched once per (city x search term). Trim this list to
+  # control API cost; start with your home market.
+  cities:
+    # Lower Mainland / Fraser Valley
+    - Vancouver
+    - Surrey
+    - Burnaby
+    - Richmond
+    - Coquitlam
+    - Port Coquitlam
+    - Port Moody
+    - New Westminster
+    - North Vancouver
+    - West Vancouver
+    - Delta
+    - Langley
+    - White Rock
+    - Maple Ridge
+    - Pitt Meadows
+    - Abbotsford
+    - Mission
+    - Chilliwack
+    - Squamish
+    - Whistler
+    # Vancouver Island
+    - Victoria
+    - Saanich
+    - Langford
+    - Colwood
+    - Sidney
+    - Duncan
+    - Nanaimo
+    - Parksville
+    - Port Alberni
+    - Courtenay
+    - Comox
+    - Campbell River
+    # Interior / North
+    - Kelowna
+    - West Kelowna
+    - Vernon
+    - Penticton
+    - Summerland
+    - Kamloops
+    - Salmon Arm
+    - Merritt
+    - Cranbrook
+    - Nelson
+    - Castlegar
+    - Trail
+    - Fernie
+    - Revelstoke
+    - Prince George
+    - Quesnel
+    - Williams Lake
+    - Fort St. John
+    - Dawson Creek
+    - Terrace
+    - Prince Rupert
+    - Smithers
+    - Kitimat
+    - Powell River
+    - Sechelt
+    - Gibsons
+    - Hope
+
+sources:
+  google_places:
+    # Set GOOGLE_MAPS_API_KEY in your environment (never commit keys).
+    api_key_env: GOOGLE_MAPS_API_KEY
+    search_terms:
+      - barber shop
+      - hair salon
+      - nail salon
+      - tanning salon
+      - lash extensions
+      - brow bar
+      - esthetics
+      - waxing studio
+      - day spa
+      - beauty salon
+    max_pages_per_query: 3        # Google returns max 20 results/page, 60/query
+    # Hard stop so a typo can't run up a bill. Each page = 1 billable request.
+    max_requests_per_run: 300
+
+  osm:
+    overpass_url: https://overpass-api.de/api/interpreter
+    area_iso: CA-BC
+
+  vancouver_licences:
+    base_url: https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets
+    dataset: business-licences
+    # Licence business types/subtypes are matched against these keywords
+    # (the City consolidated its categories in 2024, so we match loosely and
+    # then classify each business by name).
+    type_keywords: [barber, beauty, hair, nail, esthetic, aesthetic, tanning, cosmetic, spa, salon, personal service]
+    only_status: Issued
+
+  orgbook:
+    base_url: https://orgbook.gov.bc.ca/api/v4
+    # OrgBook returns at most 1,000 results per search (10 pages of 100), so
+    # overlapping specific terms reach further than one broad term.
+    search_terms: [barber, barbershop, "barber shop", barbering, salon, "hair salon", "hair studio",
+                   hair, hairstyling, nails, "nail salon", "nail bar", "nail studio", tanning,
+                   "tan studio", esthetics, aesthetics, lash, lashes, brow, brows, beauty,
+                   "beauty salon", spa, "day spa", waxing]
+    max_pages_per_term: 10        # 100 results/page; OrgBook stops at page 10
+    # Registry names have no business type, and "Barber" is also a surname.
+    # Names containing any of these words are skipped.
+    exclude_words: [motors, motor, auto, automotive, road, fit, fitness, construction, contracting,
+                    plumbing, electric, electrical, trucking, transport, realty, properties, property,
+                    farm, farms, logging, excavating, roofing, painting, law, legal, accounting,
+                    dental, developments, homes, investments, hotel, restaurant, cafe, pub, golf,
+                    products, supply, supplies, distribution, distributors, wholesale, imports]
+
+# -----------------------------------------------------------------------------
+# Business categories. Order = priority when a name scores equally for several
+# ("Hair & Nails" -> hair salon).
+#   keywords       strong signals in the business name / types
+#   weak_keywords  count half (e.g. "salon" alone)
+#   fit            how well this category fits what you sell (0-1)
+#   default_staff  used when we have no better staff estimate
+#   revenue_per_staff_cad  annual service revenue per working chair/tech
+#   reviews_per_staff      Google reviews per staff member (staff estimate)
+# -----------------------------------------------------------------------------
+categories:
+  barber:
+    label: Barbershop
+    keywords: [barber, barbers, barbershop, barbering, fade, fades, "men's grooming", gentlemen, gents]
+    google_types: [barber_shop]
+    osm_tags: {hairdresser: [barber]}
+    fit: 1.0
+    default_staff: 3
+    revenue_per_staff_cad: 65000
+    reviews_per_staff: 60
+  tanning:
+    label: Tanning
+    keywords: [tanning, "spray tan", "tan studio", "tan bar", sunless, bronze, bronzed, airbrush tan]
+    google_types: [tanning_studio]
+    osm_tags: {beauty: [tanning], leisure: [tanning_salon], shop: [tanning]}
+    fit: 0.7
+    default_staff: 2
+    revenue_per_staff_cad: 80000
+    reviews_per_staff: 100
+  hair_salon:
+    label: Hair salon
+    keywords: [hair, hairstylist, hairdresser, coiffure, blowout, "blow dry", balayage, colour, color, cuts]
+    weak_keywords: [salon, studio, stylist]
+    google_types: [hair_salon, hair_care]
+    osm_tags: {shop: [hairdresser]}
+    fit: 1.0
+    default_staff: 4
+    revenue_per_staff_cad: 80000
+    reviews_per_staff: 50
+  nails:
+    label: Nail salon
+    keywords: [nail, nails, manicure, pedicure, "mani pedi", "nail bar"]
+    google_types: [nail_salon]
+    osm_tags: {beauty: [nails]}
+    fit: 0.85
+    default_staff: 4
+    revenue_per_staff_cad: 50000
+    reviews_per_staff: 50
+  lash_brow:
+    label: Lash & brow
+    keywords: [lash, lashes, eyelash, brow, brows, microblading, threading, "lash lift"]
+    google_types: []
+    osm_tags: {beauty: [lashes, eyelashes, eyebrows, brows]}
+    fit: 0.9
+    default_staff: 2
+    revenue_per_staff_cad: 60000
+    reviews_per_staff: 40
+  esthetics_spa:
+    label: Esthetics / spa
+    keywords: [esthetic, esthetics, aesthetic, aesthetics, spa, facial, facials, skin, skincare, wax, waxing, laser, "med spa", medispa, beauty, makeup, cosmetic]
+    google_types: [spa, beauty_salon, beautician, skin_care_clinic, makeup_artist]
+    osm_tags: {shop: [beauty], beauty: [spa, waxing, cosmetics, skin_care, facial]}
+    fit: 0.85
+    default_staff: 3
+    revenue_per_staff_cad: 70000
+    reviews_per_staff: 50
+
+# Brands where software is usually chosen by head office. These still show up
+# in the report, flagged, with a low "decision maker" score.
+franchise_brands:
+  - great clips
+  - supercuts
+  - first choice haircutters
+  - magicuts
+  - chatters
+  - fantastic sams
+  - sport clips
+  - cost cutters
+  - tommy gun's
+  - tommy guns
+  - blo blow dry bar
+  - drybar
+  - european wax center
+  - benefit brow bar
+  - fabutan
+  - palm beach tan
+  - hand & stone
+  - massage envy
+  - the lash lounge
+  - ulta
+  - sephora
+  - walmart
+
+# -----------------------------------------------------------------------------
+# What YOU sell. This drives "how much could we sell it for".
+# -----------------------------------------------------------------------------
+our_product:
+  name: Our booking platform
+  pricing:
+    base_per_location: 79       # CAD / month / location
+    included_staff: 2           # staff included in the base price
+    per_extra_staff: 10         # CAD / month for each staff beyond included
+    min_monthly_price: 49       # never quote below this
+    # undercut: price X% below their estimated current spend (when they pay
+    #           for software), but never below list * min_of_list or above
+    #           list * max_over_list.
+    # list:     always quote the list price above.
+    strategy: undercut
+    undercut_pct: 0.20
+    min_of_list: 0.6            # don't chase a cheap competitor below 60% of list
+    max_over_list: 1.5
+  sweet_spot_staff: [2, 15]     # team sizes you serve best
+  months_retained: 30           # expected customer lifetime (for LTV)
+
+# -----------------------------------------------------------------------------
+# Decision matrix
+# -----------------------------------------------------------------------------
+scoring:
+  # close probability = min + (max - min) x switchability x decision_maker x fit^fit_exponent
+  #
+  # switchability and decision_maker are GATES: they multiply, because a shop
+  # that loves its software, or a franchise whose head office picks the
+  # software, is a poor lead no matter how good everything else looks.
+  # fit is the weighted average of the other factors (weights below).
+  # max = the chance of winning a perfect lead you actually pitch. Calibrate
+  # it against your real win rate after your first 20-30 pitches.
+  close_probability: {min: 0.01, max: 0.35}
+  fit_exponent: 1.5             # >1 spreads good leads apart from average ones
+  # Salons typically spend roughly 1-3% of revenue on software; used as the
+  # "can they afford it" budget.
+  software_budget_pct_of_revenue: 0.02
+  price_level_multiplier:
+    PRICE_LEVEL_INEXPENSIVE: 0.85
+    PRICE_LEVEL_MODERATE: 1.0
+    PRICE_LEVEL_EXPENSIVE: 1.25
+    PRICE_LEVEL_VERY_EXPENSIVE: 1.5
+  staff_bounds: [1, 40]
+  # Gates (0-1, from config/software_catalog.yaml and chain/franchise status):
+  #   switchability   how unhappy / locked-in users of their current software are
+  #   decision_maker  independent 1.0, 2-5 locations 0.85, 6+ 0.5, franchise 0.15
+  decision_maker: {independent: 1.0, small_chain: 0.85, large_chain: 0.5, franchise: 0.15}
+  weights:                 # fit factors (0-1 each), weighted average
+    savings: 2.0           # how much cheaper we are than what they pay now
+    affordability: 2.0     # their est. software budget vs our price
+    size_fit: 1.5          # team size inside our sweet spot
+    business_volume: 1.5   # busy shops (reviews) feel scheduling pain most
+    stability: 1.0         # years registered, operating status
+    reachability: 1.0      # do we have a phone / email / website
+    category_fit: 1.0      # barber vs nails vs tanning fit for our product
+  exclude_franchises: false
+  # Tier thresholds on expected monthly value (CAD/mo)
+  tiers: {A: 30, B: 15, C: 6}

@@ -1,0 +1,334 @@
+# =============================================================================
+# Booking / salon software catalog
+#
+# fingerprints   host (and optional path prefix) of URLs that prove a business
+#                uses this software, e.g. a "Book now" link to vagaro.com or
+#                a booksy.com widget. Matched on hostname, so "vagaro.com"
+#                also matches "www.vagaro.com" and "widget.vagaro.com".
+# pricing        rough LIST prices in `currency` per location per month.
+#                  base + per_extra_staff * (staff - included_staff) + typical_addons
+#                or tiers: [[max_staff, price], ...] (first tier that fits)
+#                Card processing fees are NOT included anywhere.
+# switchability  0-1, how winnable a typical customer is (1 = unhappy, easy to
+#                move; 0 = locked in / loves it). Pure judgement — tune it.
+# confidence     how sure we are of the pricing (low / medium / high).
+#
+# PRICES ARE ESTIMATES gathered from public comparison sites in 2026. Vendors
+# change pricing often and rarely publish add-on costs. Replace them with what
+# owners actually tell you on calls — that is the most valuable data you have.
+# =============================================================================
+
+currency: USD
+usd_to_cad: 1.38
+
+software:
+  vagaro:
+    label: Vagaro
+    fingerprints: [vagaro.com]
+    pricing: {base: 30, included_staff: 1, per_extra_staff: 10, typical_addons: 60}
+    switchability: 0.8
+    confidence: medium
+    notes: >-
+      ~$24-30 for 1 calendar + ~$10 per extra calendar; add-ons (forms, text
+      marketing, website, check-in app, payroll) ~$10-40 each. Field data: a
+      barbershop owner pays ~$200/location and is unhappy.
+    pitch: "Vagaro's add-ons stack on top of the per-calendar fee. Show them one flat price with texts, forms and reminders included."
+
+  fresha:
+    label: Fresha
+    fingerprints: [fresha.com, shedul.com]
+    pricing: {base: 20, included_staff: 1, per_extra_staff: 15, typical_addons: 0}
+    switchability: 0.7
+    confidence: medium
+    notes: >-
+      Free plan ended 2025; now ~$20 solo or ~$15 per team member. Charges a
+      ~20% one-time fee on new clients from its marketplace.
+    pitch: "Fresha went from free to paid and still takes a cut of marketplace clients. Offer flat pricing with no commissions."
+
+  booksy:
+    label: Booksy
+    fingerprints: [booksy.com, booksy.net]
+    pricing: {base: 30, included_staff: 1, per_extra_staff: 20, typical_addons: 0}
+    switchability: 0.65
+    confidence: medium
+    notes: "~$29.99/mo + ~$20 per extra staff. Boost marketing charges commission on new clients."
+    pitch: "Booksy charges ~$20 per extra barber/stylist. Bigger teams save the most with a flat or lower per-seat price."
+
+  square_appointments:
+    label: Square Appointments
+    fingerprints: [squareup.com/appointments, book.squareup.com, app.squareup.com/appointments]
+    weak_fingerprints: [square.site, squareup.com]
+    pricing: {tiers: [[1, 0], [999, 49]]}
+    switchability: 0.35
+    confidence: low
+    notes: "Free for individuals; paid plans ~$49+/location. Tied into Square POS, so sticky."
+    pitch: "Square is cheap, so don't lead with price. Lead with salon-specific features: deposits, no-show protection, waitlists, rebooking."
+
+  glossgenius:
+    label: GlossGenius
+    fingerprints: [glossgenius.com]
+    pricing: {tiers: [[1, 24], [5, 48], [999, 148]]}
+    switchability: 0.4
+    confidence: medium
+    notes: "Tiers ~$24 / $48 / $148. Generally well liked; flat processing."
+    pitch: "GlossGenius jumps to its top tier as the team grows. Price against the $148 tier for teams of 6+."
+
+  boulevard:
+    label: Boulevard
+    fingerprints: [joinblvd.com, blvd.co, boulevard.io, joinboulevard.com]
+    pricing: {base: 176, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.25
+    confidence: low
+    notes: "Premium, ~$158-$400+/location, quote-based. Users tend to be happy. Hard to win."
+    pitch: "Premium tool. Only worth pursuing if they complain about cost or contract terms."
+
+  mangomint:
+    label: Mangomint
+    fingerprints: [mangomint.com]
+    pricing: {tiers: [[1, 165], [10, 245], [999, 375]]}
+    switchability: 0.2
+    confidence: low
+    notes: "~$165-$375/mo by team size. Highly rated. Hard to win."
+    pitch: "Highly rated premium tool. Low priority unless they're price-sensitive."
+
+  mindbody:
+    label: Mindbody
+    fingerprints: [mindbodyonline.com, mindbody.io, healcode.com]
+    pricing: {base: 159, included_staff: 99, per_extra_staff: 0, typical_addons: 40}
+    switchability: 0.5
+    confidence: low
+    notes: "~$139-$449+/mo; contracts common. Expensive for small salons."
+    pitch: "Mindbody is built for gyms and studios and priced like it. Small salons often overpay. Check when their contract renews."
+
+  booker:
+    label: Booker (Mindbody)
+    fingerprints: [booker.com]
+    pricing: {base: 150, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+    notes: "Legacy Mindbody product; customers are being pushed to migrate."
+    pitch: "Booker is a legacy product. If they're being forced to migrate anyway, make the switch to you instead."
+
+  squire:
+    label: Squire
+    fingerprints: [getsquire.com]
+    pricing: {base: 30, included_staff: 1, per_extra_staff: 30, typical_addons: 0}
+    switchability: 0.45
+    confidence: low
+    notes: "Barbershop-specific. Pricing not public; reported per-barber. Clients may pay booking fees."
+    pitch: "Squire is barber-focused. Compete on total cost per chair and on not charging their clients booking fees."
+
+  thecut:
+    label: theCut
+    fingerprints: [thecut.co]
+    pricing: {base: 15, included_staff: 1, per_extra_staff: 15, typical_addons: 0}
+    switchability: 0.55
+    confidence: low
+    notes: "Barber app, often set up by each barber individually rather than the shop."
+    pitch: "theCut is per-barber. Pitch the owner one shop-wide calendar, reporting and chair-rent tracking."
+
+  styleseat:
+    label: StyleSeat
+    fingerprints: [styleseat.com]
+    pricing: {base: 35, included_staff: 1, per_extra_staff: 35, typical_addons: 0}
+    switchability: 0.5
+    confidence: low
+    notes: "~$35/mo per pro plus new-client fees."
+    pitch: "StyleSeat is per-pro with new-client fees. One shop account is cheaper."
+
+  schedulicity:
+    label: Schedulicity
+    fingerprints: [schedulicity.com]
+    pricing: {base: 40, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+
+  acuity:
+    label: Acuity / Squarespace Scheduling
+    fingerprints: [acuityscheduling.com, squarespacescheduling.com, as.me]
+    pricing: {tiers: [[1, 20], [6, 34], [999, 61]]}
+    switchability: 0.55
+    confidence: medium
+    notes: "Generic scheduler, not salon-specific (no POS, retail, or commissions)."
+    pitch: "Acuity is a generic scheduler. Show the salon-specific features they're missing."
+
+  setmore:
+    label: Setmore
+    fingerprints: [setmore.com]
+    pricing: {base: 0, included_staff: 4, per_extra_staff: 9, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+
+  simplybook:
+    label: SimplyBook.me
+    fingerprints: [simplybook.me, simplybook.it, simplybook.asia]
+    pricing: {tiers: [[1, 10], [5, 30], [999, 60]]}
+    switchability: 0.6
+    confidence: low
+
+  phorest:
+    label: Phorest
+    fingerprints: [phorest.com, phorest.me]
+    pricing: {base: 120, included_staff: 1, per_extra_staff: 15, typical_addons: 0}
+    switchability: 0.35
+    confidence: low
+    notes: "Salon-focused, quote-based; contracts common."
+
+  timely:
+    label: Timely
+    fingerprints: [gettimely.com]
+    pricing: {base: 25, included_staff: 1, per_extra_staff: 25, typical_addons: 0}
+    switchability: 0.4
+    confidence: low
+
+  kitomba:
+    label: Kitomba
+    fingerprints: [kitomba.com]
+    pricing: {base: 99, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.35
+    confidence: low
+
+  shortcuts:
+    label: Shortcuts
+    fingerprints: [shortcuts.net, shortcutssoftware.com, shortcuts.com.au]
+    pricing: {base: 150, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.4
+    confidence: low
+
+  meevo:
+    label: Meevo (Millennium)
+    fingerprints: [meevo.com]
+    pricing: {base: 200, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.3
+    confidence: low
+
+  rosy:
+    label: Rosy
+    fingerprints: [rosysalonsoftware.com]
+    pricing: {base: 75, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.5
+    confidence: low
+
+  salon_iris:
+    label: Salon Iris
+    fingerprints: [saloniris.com]
+    pricing: {base: 50, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.55
+    confidence: low
+
+  daysmart_salon:
+    label: DaySmart Salon
+    fingerprints: [daysmart.com, mysalononline.com]
+    pricing: {base: 50, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.55
+    confidence: low
+
+  salonbiz:
+    label: SalonBiz
+    fingerprints: [salonbiz.com]
+    pricing: {base: 200, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.35
+    confidence: low
+
+  zenoti:
+    label: Zenoti
+    fingerprints: [zenoti.com]
+    pricing: {base: 400, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.15
+    confidence: low
+    notes: "Enterprise / multi-location. Long sales cycles."
+
+  genbook:
+    label: Genbook
+    fingerprints: [genbook.com]
+    pricing: {base: 35, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+
+  appointy:
+    label: Appointy
+    fingerprints: [appointy.com]
+    pricing: {base: 20, included_staff: 1, per_extra_staff: 10, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+
+  calendly:
+    label: Calendly
+    fingerprints: [calendly.com]
+    pricing: {base: 12, included_staff: 1, per_extra_staff: 12, typical_addons: 0}
+    switchability: 0.65
+    confidence: medium
+    pitch: "Calendly isn't built for salons (no services menu, deposits or POS). Easy upgrade story."
+
+  jane:
+    label: Jane App
+    fingerprints: [janeapp.com]
+    pricing: {base: 79, included_staff: 1, per_extra_staff: 30, typical_addons: 0}
+    switchability: 0.3
+    confidence: low
+    notes: "Canadian clinic software; common with massage/wellness. Well liked."
+
+  wix_bookings:
+    label: Wix Bookings
+    fingerprints: []   # detected by a special rule (Wix site + /book-online page)
+    pricing: {base: 36, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+    pitch: "Booking is bolted onto their Wix site. Pitch reminders, deposits and a real staff calendar."
+
+  salonrunner:
+    label: SalonRunner
+    fingerprints: [salonrunner.com]
+    pricing: {base: 40, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.6
+    confidence: low
+
+# Pseudo-software states when no booking platform was found.
+no_software:
+  none_detected:
+    label: No online booking found (phone/DM)
+    switchability: 0.55
+    pitch: "No online booking found. Pitch fewer no-shows, 24/7 booking and less time on the phone. Start them on the base plan."
+  social_only:
+    label: Instagram / social only
+    switchability: 0.5
+    pitch: "They book through Instagram DMs. Pitch a booking link for their bio, with deposits to cut no-shows."
+  no_website:
+    label: No website
+    switchability: 0.45
+    pitch: "No web presence. Pitch a simple booking page they can share, and walk them through setup."
+  unknown:
+    label: Unknown (not checked yet)
+    switchability: 0.5
+    pitch: "Software unknown. Ask what they use for booking and what it costs them per month."
+
+# Website builders (detected for context; useful if you also sell websites).
+site_builders:
+  wix: [wixstatic.com, wixsite.com, wix.com, parastorage.com]
+  squarespace: [squarespace.com, squarespace-cdn.com, sqspcdn.com]
+  shopify: [cdn.shopify.com, myshopify.com]
+  wordpress: ["/wp-content/", "/wp-includes/"]
+  godaddy: [img1.wsimg.com, godaddysites.com]
+  weebly: [weebly.com, editmysite.com]
+  webflow: [webflow.com, website-files.com]
+  square_online: [square.site, squarecdn.com]
+
+# Hosts that are platforms, not a business's own site (used for chain detection).
+platform_hosts:
+  - instagram.com
+  - facebook.com
+  - fb.com
+  - tiktok.com
+  - linktr.ee
+  - linktree.com
+  - beacons.ai
+  - google.com
+  - goo.gl
+  - g.page
+  - business.site
+  - yelp.com
+  - yelp.ca
+  - yellowpages.ca
+  - wixsite.com
+  - square.site
+  - squareup.com
