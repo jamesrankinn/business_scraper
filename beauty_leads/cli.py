@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -86,6 +87,16 @@ def cmd_enrich(args) -> int:
             from .enrich.website import enrich_websites
             stats = enrich_websites(cfg, db, http, limit=args.limit, force=args.force, workers=args.workers)
             print("websites checked:", ", ".join(f"{cfg.software_label(k)}: {v}" for k, v in sorted(stats.items(), key=lambda kv: -kv[1])) or "none new")
+        if args.what in ("render", "all"):
+            from .enrich.browser import recheck_with_browser
+            try:
+                stats = recheck_with_browser(cfg, db, http, limit=args.limit, force=args.force)
+                print("browser recheck:", ", ".join(f"{cfg.software_label(k)}: {v}" for k, v in sorted(stats.items(), key=lambda kv: -kv[1])) or "nothing to recheck")
+            except RuntimeError as exc:
+                if args.what == "render":
+                    print(f"error: {exc}", file=sys.stderr)
+                    return 1
+                print(f"skipping browser recheck: {exc}")
         if args.what in ("registry", "all"):
             from .enrich.registry import match_registry
             stats = match_registry(cfg, db, http, online=args.online, limit=args.limit)
@@ -96,8 +107,43 @@ def cmd_enrich(args) -> int:
 
 
 def _assess(cfg, db):
-    scorer = Scorer(cfg, db.website_checks(), db.registry_matches())
+    scorer = Scorer(cfg, db.website_checks(), db.registry_matches(), crm=db.crm_leads())
     return scorer.assess_all(db.iter_businesses())
+
+
+def cmd_close(args) -> int:
+    from . import crm_close
+
+    cfg, db = _ctx(args)
+    assessments = _assess(cfg, db)
+    if args.action == "push" and args.dry_run:
+        payloads = crm_close.dry_run_payloads(cfg, assessments, args.tier, args.limit)
+        out = Path(args.out or cfg.base_dir / "reports" / "close_dry_run.json")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(crm_close.dumps(payloads), encoding="utf-8")
+        print(f"dry run: {len(payloads)} leads would be pushed to Close. Payloads written to {out}")
+        return 0
+    env = cfg.get("close.api_key_env", "CLOSE_API_KEY")
+    key = os.environ.get(env)
+    if not key:
+        print(f"error: set {env} to a Close API key (Close: Settings > Developer > API Keys).\n"
+              "No key? `beauty-leads export` also writes reports/close_import.csv for Close's CSV importer.",
+              file=sys.stderr)
+        return 1
+    client = crm_close.CloseClient(key, cfg.get("close.base_url", crm_close.CLOSE_API))
+    try:
+        if args.action == "push":
+            r = crm_close.push(cfg, db, client, assessments, args.tier, args.limit)
+            print(f"Close: {r.created} created, {r.linked} matched to leads already in Close, "
+                  f"{r.updated} refreshed, {r.errors} errors")
+        else:
+            s = crm_close.pull(cfg, db, client)
+            print(f"Close: pulled {s['pulled']} leads ({s['with_reports']} with reported data, "
+                  f"{s['missing']} deleted in Close). Re-run `beauty-leads export` to rescore.")
+    except crm_close.CloseError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def cmd_score(args) -> int:
@@ -175,6 +221,7 @@ def cmd_stats(args) -> int:
     print("businesses:", db.business_count())
     print("websites checked:", len(db.website_checks()))
     print("registry matches:", sum(1 for m in db.registry_matches().values() if m.get("match")))
+    print("linked to Close:", len(db.crm_leads()))
     return 0
 
 
@@ -196,7 +243,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("merge", help="dedupe records into businesses").set_defaults(func=cmd_merge)
 
     e = sub.add_parser("enrich", help="detect booking software / match BC registry")
-    e.add_argument("what", choices=["websites", "registry", "all"])
+    e.add_argument("what", choices=["websites", "render", "registry", "all"],
+                   help="websites: plain fetch; render: headless-browser recheck of sites where nothing was "
+                        "found; registry: BC Registries match; all: everything")
     e.add_argument("--limit", type=int, help="max websites / online lookups this run")
     e.add_argument("--force", action="store_true", help="re-check websites already checked")
     e.add_argument("--workers", type=int, help="parallel website checks")
@@ -220,6 +269,14 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("demo", help="build a report from fictional sample businesses")
     d.add_argument("--out", help="output folder (default reports/demo)")
     d.set_defaults(func=cmd_demo)
+
+    c2 = sub.add_parser("close", help="push leads to / pull call notes from Close CRM")
+    c2.add_argument("action", choices=["push", "pull"])
+    c2.add_argument("--tier", nargs="+", help="tiers to push (default from config: A B)")
+    c2.add_argument("--limit", type=int, help="max leads to push")
+    c2.add_argument("--dry-run", action="store_true", help="write the payloads to a file instead of sending")
+    c2.add_argument("--out", help="dry-run output file")
+    c2.set_defaults(func=cmd_close)
 
     sub.add_parser("stats", help="show what's in the database").set_defaults(func=cmd_stats)
     return p

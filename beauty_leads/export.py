@@ -21,7 +21,7 @@ LEAD_COLUMNS = [
     "our_price_cad", "savings_cad", "staff_est", "staff_source", "annual_revenue_est_cad",
     "software_budget_cad", "rating", "reviews", "price_level", "years_registered", "entity_type",
     "chain_locations", "franchise", "site_builder", "ltv_cad", "pitch", "why", "software_evidence",
-    "no_solicitation",
+    "no_solicitation", "close_status", "close_url",
     "excluded_reason", "google_maps_url", "sources", "chain_key", "business_key",
 ]
 
@@ -101,6 +101,10 @@ def export_all(cfg: Config, assessments: list[Assessment], out_dir: str | Path, 
     outreach = outreach_rows(cfg, assessments)
     email_rows = [r for r in outreach if r["channel"] == "email"]
     dm_rows = [r for r in outreach if r["channel"] == "instagram"]
+    from .crm_close import CLOSE_CSV_COLUMNS, close_csv_rows
+    paths["close_import_csv"] = out / "close_import.csv"
+    _write_csv(paths["close_import_csv"], close_csv_rows(cfg, assessments), CLOSE_CSV_COLUMNS)
+
     paths["outreach_csv"] = out / "outreach.csv"
     _write_csv(paths["outreach_csv"], outreach, OUTREACH_COLUMNS)
     paths["outreach_email_csv"] = out / "outreach_email.csv"
@@ -120,7 +124,8 @@ def export_all(cfg: Config, assessments: list[Assessment], out_dir: str | Path, 
 OUTREACH_COLUMNS = [
     "tier", "expected_mrr_cad", "business", "city", "category", "channel", "email", "instagram",
     "instagram_url", "phone", "software", "current_spend_cad", "our_price_cad", "message_group",
-    "email_subject", "email_body", "dm_text", "no_solicitation", "website", "google_maps_url", "business_key",
+    "email_subject", "email_body", "dm_text", "no_solicitation", "close_status", "website", "google_maps_url",
+    "business_key",
 ]
 
 

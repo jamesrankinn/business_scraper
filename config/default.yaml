@@ -153,7 +153,8 @@ sources:
 # ("Hair & Nails" -> hair salon).
 #   keywords       strong signals in the business name / types
 #   weak_keywords  count half (e.g. "salon" alone)
-#   fit            how well this category fits what you sell (0-1)
+#   fit            how well this category fits what you sell (0-1). All 1.0: you
+#                  serve every category. Lower one to push it down the list.
 #   default_staff  used when we have no better staff estimate
 #   revenue_per_staff_cad  annual service revenue per working chair/tech
 #   reviews_per_staff      Google reviews per staff member (staff estimate)
@@ -176,7 +177,7 @@ categories:
     keywords: [tanning, "spray tan", "tan studio", "tan bar", sunless, bronze, bronzed, airbrush tan]
     google_types: [tanning_studio]
     osm_tags: {beauty: [tanning], leisure: [tanning_salon], shop: [tanning]}
-    fit: 0.7
+    fit: 1.0
     default_staff: 2
     revenue_per_staff_cad: 80000
     reviews_per_staff: 100
@@ -186,7 +187,7 @@ categories:
     keywords: [tattoo, tattoos, tattooing, ink, piercing, piercings, "body art", "body piercing"]
     google_types: [tattoo_shop, body_art_service]
     osm_tags: {shop: [tattoo]}
-    fit: 0.8
+    fit: 1.0
     default_staff: 4
     revenue_per_staff_cad: 90000
     reviews_per_staff: 60
@@ -207,7 +208,7 @@ categories:
     keywords: [nail, nails, manicure, pedicure, "mani pedi", "nail bar"]
     google_types: [nail_salon]
     osm_tags: {beauty: [nails]}
-    fit: 0.85
+    fit: 1.0
     default_staff: 4
     revenue_per_staff_cad: 50000
     reviews_per_staff: 50
@@ -217,7 +218,7 @@ categories:
     keywords: [lash, lashes, eyelash, brow, brows, microblading, threading, "lash lift"]
     google_types: []
     osm_tags: {beauty: [lashes, eyelashes, eyebrows, brows]}
-    fit: 0.9
+    fit: 1.0
     default_staff: 2
     revenue_per_staff_cad: 60000
     reviews_per_staff: 40
@@ -229,7 +230,7 @@ categories:
                "cosmetic clinic", "aesthetic clinic", "aesthetics clinic", coolsculpting, hydrafacial]
     google_types: [medical_spa]
     osm_tags: {"healthcare:speciality": [cosmetic, aesthetic_medicine]}
-    fit: 0.85
+    fit: 1.0
     default_staff: 4
     revenue_per_staff_cad: 180000
     reviews_per_staff: 40
@@ -239,7 +240,7 @@ categories:
     keywords: [massage, rmt, "registered massage", "massage therapy", reflexology, shiatsu, "deep tissue", bodywork]
     google_types: [massage, massage_therapist, massage_spa]
     osm_tags: {shop: [massage], "healthcare:speciality": [massage_therapy]}
-    fit: 0.7     # BC RMT clinics often need insurer direct billing; lower it if you don't offer that
+    fit: 1.0
     default_staff: 4
     revenue_per_staff_cad: 65000
     reviews_per_staff: 35
@@ -249,7 +250,7 @@ categories:
     keywords: [esthetic, esthetics, aesthetic, aesthetics, spa, facial, facials, skin, skincare, wax, waxing, beauty, makeup, cosmetic]
     google_types: [spa, beauty_salon, beautician, skin_care_clinic, makeup_artist]
     osm_tags: {shop: [beauty], beauty: [spa, waxing, cosmetics, skin_care, facial]}
-    fit: 0.85
+    fit: 1.0
     default_staff: 3
     revenue_per_staff_cad: 70000
     reviews_per_staff: 50
@@ -286,6 +287,28 @@ franchise_brands:
   - ulta
   - sephora
   - walmart
+
+# -----------------------------------------------------------------------------
+# Browser recheck (`beauty-leads enrich render`): sites where the plain fetch
+# found no booking software are opened in headless Chromium.
+# -----------------------------------------------------------------------------
+browser:
+  timeout_seconds: 20
+  pause_seconds: 1.0          # wait between sites
+  executable_path: ""         # leave empty unless Playwright can't find Chromium
+
+# -----------------------------------------------------------------------------
+# Close CRM (`beauty-leads close push|pull`). Put your API key in the
+# CLOSE_API_KEY environment variable, never in this file.
+# -----------------------------------------------------------------------------
+close:
+  api_key_env: CLOSE_API_KEY
+  base_url: https://api.close.com/api/v1
+  push_tiers: [A, B]          # which tiers `close push` sends by default
+  # Rename the custom fields it creates in Close, e.g. {tier: "Lead Tier"}.
+  # Keys: bl_id tier expected price spend close_pct software category channel
+  #       instagram reported_software reported_spend reported_staff
+  field_names: {}
 
 # -----------------------------------------------------------------------------
 # What YOU sell. This drives "how much could we sell it for".

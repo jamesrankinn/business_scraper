@@ -30,6 +30,9 @@ Detected from the business's website (see `beauty_leads/enrich/software.py`):
 * a "Book now" button links to one: high confidence
 * the platform's URL appears somewhere in the page source: lower confidence
 * none of those, so we follow up to two "Book" links on the site and look again
+* still nothing: `enrich render` opens the site in a headless browser and watches which servers the
+  page calls. Widgets that only appear through JavaScript show up here. Requests to booking
+  platforms are recorded and blocked, never sent
 * nothing found: *No online booking (phone/DM)*; Instagram/Linktree only: *social only*
 
 **Spend** = the catalog's list price for that team size, plus typical add-ons, converted to CAD. Card

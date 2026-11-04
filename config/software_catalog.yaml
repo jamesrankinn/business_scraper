@@ -267,6 +267,7 @@ software:
     switchability: 0.3
     confidence: low
     notes: "Canadian clinic software; common with massage/wellness. Well liked."
+    pitch: "Jane is well liked. Lead with insurer direct billing, intake forms and price; offer to move their client records."
 
   wix_bookings:
     label: Wix Bookings
@@ -314,8 +315,8 @@ software:
     pricing: {base: 250, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
     switchability: 0.35
     confidence: low
-    notes: "Med spa EMR with charting and photos. Hard to replace unless you offer clinical charting."
-    pitch: "Aesthetic Record is an EMR. Unless you offer clinical charting, pitch booking and marketing alongside it rather than replacing it."
+    notes: "Med spa EMR with charting and photos. Sticky because client charts live in it."
+    pitch: "Aesthetic Record holds their charts. Pitch one system for charting and booking, and offer to help move their client records."
 
   pabau:
     label: Pabau

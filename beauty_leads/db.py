@@ -5,6 +5,8 @@ Tables
   businesses          deduplicated businesses (rebuilt by `merge`)
   website_checks      website enrichment results, keyed by normalised URL
   registry_matches    BC Registries (OrgBook) matches, keyed by normalised name
+  crm_leads           which CRM lead each business was pushed to, plus what was
+                      pulled back from it (status, reported software/spend/staff)
 
 Enrichment is keyed by URL / name rather than business id so that `merge`
 can be re-run at any time without losing enrichment work.
@@ -36,6 +38,13 @@ CREATE TABLE IF NOT EXISTS website_checks (
     url_key     TEXT PRIMARY KEY,
     data        TEXT NOT NULL,
     checked_at  REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS crm_leads (
+    business_key TEXT PRIMARY KEY,
+    crm          TEXT NOT NULL,
+    lead_id      TEXT NOT NULL,
+    data         TEXT NOT NULL,
+    synced_at    REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS registry_matches (
     name_key    TEXT PRIMARY KEY,
@@ -120,6 +129,20 @@ class Database:
                 "ON CONFLICT(name_key) DO UPDATE SET data=excluded.data, checked_at=excluded.checked_at",
                 (name_key, json.dumps(data), time.time()),
             )
+
+    # --- CRM links -------------------------------------------------------------
+    def save_crm_lead(self, business_key: str, crm: str, lead_id: str, data: dict) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO crm_leads (business_key, crm, lead_id, data, synced_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(business_key) DO UPDATE SET crm=excluded.crm, lead_id=excluded.lead_id, "
+                "data=excluded.data, synced_at=excluded.synced_at",
+                (business_key, crm, lead_id, json.dumps(data or {}), time.time()),
+            )
+
+    def crm_leads(self) -> dict[str, dict]:
+        return {k: {"crm": c, "lead_id": lid, "data": json.loads(d)}
+                for k, c, lid, d in self.conn.execute("SELECT business_key, crm, lead_id, data FROM crm_leads")}
 
     def registry_matches(self) -> dict[str, dict]:
         return {k: json.loads(v) for k, v in self.conn.execute("SELECT name_key, data FROM registry_matches")}

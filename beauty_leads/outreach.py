@@ -96,6 +96,7 @@ def outreach_rows(cfg: Config, assessments: list[Assessment]) -> list[dict]:
             "website": b.website,
             "google_maps_url": b.google_maps_url,
             "business_key": b.key,
+            "close_status": a.crm_status,
         })
     rows.sort(key=lambda r: -r["expected_mrr_cad"])
     return rows

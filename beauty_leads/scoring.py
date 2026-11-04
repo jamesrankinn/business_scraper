@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date
 
 from .config import Config
@@ -61,6 +61,8 @@ class Assessment:
     instagram: str | None = None          # handle, no @
     no_solicitation: str | None = None    # the site's "no solicitation" wording, if any
     channel: str = "none"                 # email | instagram | phone | none
+    crm_status: str | None = None         # lead status in Close, after `close pull`
+    crm_url: str | None = None
 
     @property
     def email_ok(self) -> bool:
@@ -118,6 +120,8 @@ class Assessment:
             "sources": ", ".join(b.sources),
             "chain_key": b.chain_key,
             "business_key": b.key,
+            "close_status": self.crm_status,
+            "close_url": self.crm_url,
             **{f"f_{k}": round(v, 2) for k, v in self.factors.items()},
         }
 
@@ -164,11 +168,13 @@ def resolve_known_software(cfg: Config, text: str | None) -> str | None:
 
 class Scorer:
     def __init__(self, cfg: Config, website_checks: dict[str, dict] | None = None,
-                 registry_matches: dict[str, dict] | None = None, today: date | None = None):
+                 registry_matches: dict[str, dict] | None = None, today: date | None = None,
+                 crm: dict[str, dict] | None = None):
         self.cfg = cfg
         self.checks = website_checks or {}
         self.registry = registry_matches or {}
         self.today = today or date.today()
+        self.crm = crm or {}
         s = cfg.get("scoring", {})
         self.weights: dict[str, float] = s.get("weights", {})
         self.fit_exp = float(s.get("fit_exponent", 1.5))
@@ -210,7 +216,7 @@ class Scorer:
         cat = self.cfg.categories.get(b.category, {})
         default = float(cat.get("default_staff", 3))
         if b.num_employees:
-            src = "reported" if any(s.startswith("csv") for s in b.sources) else "business licence"
+            src = "reported" if any(s.startswith(("csv", "close")) for s in b.sources) else "business licence"
             return int(_clamp(b.num_employees, self.staff_lo, self.staff_hi)), src
         if b.review_count:
             rps = float(cat.get("reviews_per_staff", 60))
@@ -237,7 +243,25 @@ class Scorer:
         return entry, years
 
     # --- the matrix ----------------------------------------------------------
+    def apply_crm(self, b: Business) -> tuple[Business, dict]:
+        """What you recorded in Close beats any estimate."""
+        data = (self.crm.get(b.key) or {}).get("data") or {}
+        if not data:
+            return b, {}
+        extra = dict(b.extra)
+        if data.get("reported_software"):
+            extra["known_software"] = data["reported_software"]
+        if data.get("reported_spend") not in (None, ""):
+            extra["known_monthly_spend_cad"] = float(data["reported_spend"])
+        staff = b.num_employees
+        if data.get("reported_staff") not in (None, ""):
+            staff = int(float(data["reported_staff"]))
+        reported = any(data.get(k) not in (None, "") for k in ("reported_software", "reported_spend", "reported_staff"))
+        sources = b.sources + ["close"] if reported else b.sources
+        return replace(b, extra=extra, num_employees=staff, sources=sources), data
+
     def assess(self, b: Business) -> Assessment:
+        b, crm = self.apply_crm(b)
         cfg, reasons = self.cfg, []
         cat = cfg.categories.get(b.category, {})
         software, confidence, evidence, check = self.software_for(b)
@@ -391,6 +415,7 @@ class Scorer:
             factors=f, fit_score=fit * 100, close_probability=prob, expected_mrr=emv, potential_mrr=price,
             ltv=price * self.months, tier=tier, excluded_reason=excluded, reasons=reasons, pitch=pitch,
             instagram=instagram, no_solicitation=no_solicit, channel=channel,
+            crm_status=crm.get("status_label"), crm_url=crm.get("html_url"),
         )
 
     def assess_all(self, businesses) -> list[Assessment]:

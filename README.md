@@ -19,8 +19,15 @@ you per month if you pitch it. It then drafts a tailored email or Instagram DM f
 ## Quick start
 
 ```bash
-pip install -e .
+pip install -e ".[browser]"
 ```
+
+```bash
+python -m playwright install chromium
+```
+
+The second command downloads the headless browser used to recheck websites (see below). Skip both
+`[browser]` and this step if you don't want that recheck.
 
 See the output first, using fictional businesses (no keys needed):
 
@@ -41,7 +48,7 @@ beauty-leads run
 ```
 
 `run` collects every free source, plus Google if the key is set. It then merges, checks websites
-and writes `reports/`. You can also run the steps one at a time:
+(with the browser recheck when it's installed) and writes `reports/`. You can also run the steps one at a time:
 
 ```bash
 beauty-leads collect google --city Kelowna --city Vernon
@@ -65,6 +72,10 @@ beauty-leads merge
 
 ```bash
 beauty-leads enrich websites
+```
+
+```bash
+beauty-leads enrich render
 ```
 
 ```bash
@@ -221,13 +232,65 @@ beauty-leads merge
 beauty-leads export
 ```
 
-Reported software, spend and chair counts override every estimate for that business.
+Reported software, spend and chair counts override every estimate for that business. If you use
+Close, log them there instead (next section).
+
+## Close CRM
+
+Push your best leads into Close, work them there, and let what you learn flow back into the scores.
+
+1. In Close: **Settings → Developer → API Keys**, create a key. Store it as the `CLOSE_API_KEY`
+   environment variable. Use a key from an admin, because the first push creates custom fields.
+2. Check what would be sent, without sending anything:
+
+   ```bash
+   beauty-leads close push --dry-run
+   ```
+
+3. Push tiers A and B (change the tiers with `--tier A B C`):
+
+   ```bash
+   beauty-leads close push
+   ```
+
+Each business becomes a Close lead with its phone, email, Instagram link and address, plus a note
+holding the pitch, the "why", and the drafted DM and email. The scores go into custom fields: **BL
+Tier, BL Expected MRR, BL Our Price, BL Est. Current Spend, BL Close %, BL Software, BL Category,
+BL Channel, Instagram** and **Beauty Leads ID**. Build Smart Views on them, for example "BL Tier is
+A and BL Channel is instagram" for today's DM list.
+
+* **No duplicates.** Before creating a lead, the push looks for one with the same Beauty Leads ID,
+  then the same name. A shop you already have in Close gets the score fields and a note added
+  instead of a second lead.
+* **Your edits are safe.** Re-pushing only refreshes the BL score fields. It never changes
+  contacts, status, notes or anything you typed.
+
+**During calls**, fill in **Reported Software**, **Reported Monthly Spend** and **Reported Staff**
+on the lead. Then pull them back:
+
+```bash
+beauty-leads close pull
+```
+
+```bash
+beauty-leads export
+```
+
+The reported values replace the tool's estimates. Each lead's Close status also shows up in the
+leads and outreach files.
+
+**No API key?** `beauty-leads export` also writes `reports/close_import.csv` for Close's CSV
+importer (Leads → Import).
 
 ## Being a good citizen
 
 * Website checks identify themselves (set a real contact in `http.user_agent`), obey `robots.txt`,
   wait 1.5 s between requests to the same site, and look at no more than 4 pages per business
   (homepage, up to two "Book" pages, one contact page).
+* The browser recheck only opens sites where the plain check found nothing. It checks
+  `robots.txt` first, skips images, video and fonts, pauses between sites, and **blocks every request
+  to a booking platform**. It notes that the page tried to load vagaro.com, booksy.com or another
+  platform, and never contacts those servers.
 * Adult "body rub" businesses, dental clinics, pet groomers and supply wholesalers are dropped
   (`exclude_keywords`).
 * Only public business information is collected.
