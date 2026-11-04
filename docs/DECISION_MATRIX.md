@@ -73,8 +73,8 @@ close % = min + (max − min) × switchability × decision_maker × fit ^ fit_ex
 | `size_fit` | 1.5 | 1.0 inside `sweet_spot_staff` (2–15); tapers outside |
 | `business_volume` | 1.5 | log-scaled review count (300+ reviews gives 1.0); ×0.7 if rating < 3.5 |
 | `stability` | 1.0 | years registered with BC Registries: <1 → 0.3, <2 → 0.6, <5 → 0.85, 5+ → 1.0; +0.1 if incorporated; temporarily closed → 0.2 |
-| `reachability` | 1.0 | phone 0.5 + email 0.3 + website/social 0.2 |
-| `category_fit` | 1.0 | per category (barber 1.0, hair 1.0, lash 0.9, nails 0.85, esthetics 0.85, tanning 0.7) |
+| `reachability` | 1.5 | usable email 0.4 + Instagram 0.35 + phone 0.15 + website 0.1 (capped at 1). "Usable" means published and the site doesn't say "no solicitation". Weighted toward email and DMs, the main outreach channels. |
+| `category_fit` | 1.0 | per category: barber 1.0, hair 1.0, lash 0.9, nails 0.85, esthetics 0.85, med spa 0.85, tattoo 0.8, tanning 0.7, massage 0.7 (BC RMT clinics often need insurer direct billing; raise it if you offer that) |
 
 Permanently closed businesses, and franchises if `exclude_franchises: true`, get 0%.
 
@@ -85,7 +85,7 @@ Permanently closed businesses, and franchises if `exclude_franchises: true`, get
 ## Worked example
 
 A 5-chair barbershop in Surrey (licence lists 5 employees) with 250 Google reviews at 4.7, a "$$"
-price level, registered in 2020, with a phone, website and email:
+price level, registered in 2020, with a phone, website, published email and Instagram:
 
 | Step | Vagaro | Boulevard | No online booking |
 |---|---|---|---|
@@ -95,9 +95,9 @@ price level, registered in 2020, with a phone, website and email:
 | Our list price | 79 + 3×10 = $109 | $109 | $109 |
 | Our price | $179 × 0.8 = **$144** | $194 capped at 1.5 × list = **$164** | **$109** |
 | Switchability | 0.80 | 0.25 | 0.55 |
-| Fit | 91.5 | 96.6 | 86.5 |
-| Close % | **24.8%** | **9.1%** | **16.1%** |
-| **EMV** | **$35.62 (A)** | **$14.83 (C)** | **$17.49 (B)** |
+| Fit | 91.9 | 96.8 | 87.2 |
+| Close % | **25.0%** | **9.1%** | **16.2%** |
+| **EMV** | **$35.84 (A)** | **$14.86 (C)** | **$17.68 (B)** |
 
 Boulevard has the best fit, because we'd save them the most money. It still ranks last: its users
 like the product, and the switchability gate keeps one strong factor from hiding that.

@@ -22,7 +22,7 @@ from datetime import date
 from .config import Config
 from .enrich.software import social_kind, software_for_url
 from .models import Business
-from .normalize import name_key, normalize_name, url_key
+from .normalize import instagram_handle, name_key, normalize_name, url_key
 
 NO_SOFTWARE_STATES = {"unknown", "none_detected", "social_only", "no_website"}
 
@@ -58,6 +58,18 @@ class Assessment:
     excluded_reason: str | None
     reasons: list[str] = field(default_factory=list)
     pitch: str = ""
+    instagram: str | None = None          # handle, no @
+    no_solicitation: str | None = None    # the site's "no solicitation" wording, if any
+    channel: str = "none"                 # email | instagram | phone | none
+
+    @property
+    def email_ok(self) -> bool:
+        """Published email we may contact under CASL implied consent."""
+        return bool(self.emails) and not self.no_solicitation
+
+    @property
+    def instagram_url(self) -> str | None:
+        return f"https://www.instagram.com/{self.instagram}/" if self.instagram else None
 
     def flat(self) -> dict:
         b = self.business
@@ -72,9 +84,13 @@ class Assessment:
             "city": b.city,
             "address": b.address,
             "phone": b.phone,
+            "channel": self.channel,
             "email": "; ".join(self.emails),
+            "email_ok": self.email_ok,
+            "no_solicitation": self.no_solicitation,
+            "instagram": f"@{self.instagram}" if self.instagram else None,
+            "instagram_url": self.instagram_url,
             "website": b.website,
-            "instagram": self.socials.get("instagram"),
             "software": self.software_label,
             "software_confidence": self.software_confidence,
             "software_evidence": " | ".join(self.software_evidence[:2]),
@@ -168,6 +184,8 @@ class Scorer:
         self.sweet_lo, self.sweet_hi = cfg.get("our_product.sweet_spot_staff", [2, 15])
         self.months = float(cfg.get("our_product.months_retained", 30))
         self.fx = cfg.usd_to_cad
+        self.reach = {"email": 0.4, "instagram": 0.35, "phone": 0.15, "website": 0.1,
+                      **(s.get("reachability") or {})}
 
     # --- inputs --------------------------------------------------------------
     def software_for(self, b: Business) -> tuple[str, str | None, list[str], dict]:
@@ -327,10 +345,23 @@ class Scorer:
         f["stability"] = stab
 
         emails = list(dict.fromkeys((b.emails or []) + (check.get("emails") or [])))
-        socials = check.get("socials") or {}
-        if b.extra.get("contact:instagram") and "instagram" not in socials:
-            socials = {**socials, "instagram": b.extra["contact:instagram"]}
-        f["reachability"] = (0.5 if b.phone else 0) + (0.3 if emails else 0) + (0.2 if (b.website or socials) else 0)
+        socials = dict(check.get("socials") or {})
+        instagram = None
+        for candidate in (b.extra.get("instagram"), socials.get("instagram"), b.extra.get("contact:instagram"),
+                          b.website if social_kind(b.website) == "instagram" else None):
+            instagram = instagram_handle(candidate)
+            if instagram:
+                break
+        if instagram:
+            socials["instagram"] = f"https://www.instagram.com/{instagram}/"
+        no_solicit = check.get("no_solicitation")
+        email_ok = bool(emails) and not no_solicit
+        if no_solicit:
+            reasons.append(f"site says \"{no_solicit}\": do not cold-email")
+        r = self.reach
+        f["reachability"] = min(1.0, (r["email"] if email_ok else 0) + (r["instagram"] if instagram else 0)
+                                + (r["phone"] if b.phone else 0) + (r["website"] if b.website else 0))
+        channel = "email" if email_ok else "instagram" if instagram else "phone" if b.phone else "none"
         f["category_fit"] = float(cat.get("fit", 0.8))
 
         # Gates multiply; everything else is a weighted average ("fit").
@@ -359,6 +390,7 @@ class Scorer:
             current_spend_source=spend_src, list_price=list_price, suggested_price=price, savings=savings,
             factors=f, fit_score=fit * 100, close_probability=prob, expected_mrr=emv, potential_mrr=price,
             ltv=price * self.months, tier=tier, excluded_reason=excluded, reasons=reasons, pitch=pitch,
+            instagram=instagram, no_solicitation=no_solicit, channel=channel,
         )
 
     def assess_all(self, businesses) -> list[Assessment]:
@@ -388,7 +420,8 @@ def accounts(assessments: list[Assessment]) -> list[dict]:
             "current_spend_cad": round(sum(a.current_spend or 0 for a in items), 2),
             "best_tier": tiers[0] if tiers else "D",
             "phone": next((a.business.phone for a in items if a.business.phone), None),
-            "email": next((a.emails[0] for a in items if a.emails), None),
+            "email": next((a.emails[0] for a in items if a.email_ok), None),
+            "instagram": next((f"@{a.instagram}" for a in items if a.instagram), None),
             "website": next((a.business.website for a in items if a.business.website), None),
             "franchise": top.business.franchise,
             "pitch": top.pitch,

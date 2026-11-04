@@ -283,6 +283,57 @@ software:
     switchability: 0.6
     confidence: low
 
+  # --- massage / wellness ---------------------------------------------------
+  clinicsense:
+    label: ClinicSense
+    fingerprints: [clinicsense.com]
+    pricing: {base: 40, included_staff: 1, per_extra_staff: 20, typical_addons: 0}
+    switchability: 0.5
+    confidence: low
+    notes: "Massage-therapist practice software (SOAP notes, intake forms)."
+
+  noterro:
+    label: Noterro
+    fingerprints: [noterro.com]
+    pricing: {base: 45, included_staff: 1, per_extra_staff: 25, typical_addons: 0}
+    switchability: 0.5
+    confidence: low
+    notes: "Canadian clinic software used by RMTs and physio."
+
+  massagebook:
+    label: MassageBook
+    fingerprints: [massagebook.com]
+    pricing: {base: 30, included_staff: 1, per_extra_staff: 20, typical_addons: 0}
+    switchability: 0.55
+    confidence: low
+
+  # --- med spa ----------------------------------------------------------------
+  aesthetic_record:
+    label: Aesthetic Record
+    fingerprints: [aestheticrecord.com]
+    pricing: {base: 250, included_staff: 99, per_extra_staff: 0, typical_addons: 0}
+    switchability: 0.35
+    confidence: low
+    notes: "Med spa EMR with charting and photos. Hard to replace unless you offer clinical charting."
+    pitch: "Aesthetic Record is an EMR. Unless you offer clinical charting, pitch booking and marketing alongside it rather than replacing it."
+
+  pabau:
+    label: Pabau
+    fingerprints: [pabau.com]
+    pricing: {base: 150, included_staff: 3, per_extra_staff: 20, typical_addons: 0}
+    switchability: 0.4
+    confidence: low
+    notes: "Clinic/med spa software with forms and EMR features."
+
+  # --- tattoo -------------------------------------------------------------------
+  tattoogenda:
+    label: Tattoogenda
+    fingerprints: [tattoogenda.com]
+    pricing: {base: 30, included_staff: 1, per_extra_staff: 15, typical_addons: 0}
+    switchability: 0.5
+    confidence: low
+    pitch: "Tattoo shops live on consult requests and deposits. Lead with deposit collection, consent forms and artist calendars."
+
 # Pseudo-software states when no booking platform was found.
 no_software:
   none_detected:

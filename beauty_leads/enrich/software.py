@@ -14,10 +14,18 @@ from urllib.parse import urljoin, urlsplit
 from bs4 import BeautifulSoup
 
 from ..config import Config
-from ..normalize import EMAIL_RE, clean_emails, host_matches, host_of
+from ..normalize import EMAIL_RE, clean_emails, host_matches, host_of, instagram_handle
 
 URL_RE = re.compile(r"""(?:https?:)?//[A-Za-z0-9.-]+\.[A-Za-z]{2,}[^\s"'<>()\\]*""")
 BOOKING_WORDS = re.compile(r"\b(book|booking|appointment|schedule|reserve|online booking)\b", re.I)
+CONTACT_WORDS = re.compile(r"\b(contact|about|connect|get in touch|find us|visit us)\b", re.I)
+# CASL: a published address can't be emailed under implied consent if the site
+# says it doesn't want unsolicited commercial messages.
+NO_SOLICIT_RE = re.compile(
+    r"\b(no|not accepting|do not (?:send|accept|want)|don'?t (?:send|want)|we do not accept)\b[^.!?\n]{0,40}?"
+    r"\b(solicitations?|solicitors|unsolicited|commercial (?:e-?mails?|messages)|sales (?:e-?mails?|calls|pitches))\b",
+    re.I,
+)
 SOCIAL_HOSTS = {
     "instagram": ["instagram.com"],
     "facebook": ["facebook.com", "fb.com"],
@@ -132,11 +140,15 @@ def detect(cfg: Config, html: str, page_url: str) -> dict:
     socials: dict[str, str] = {}
     for url, _text in anchors:
         kind = social_kind(url)
+        if kind == "instagram" and not instagram_handle(url):
+            continue  # a post or reel link, not the profile
         if kind and kind not in socials:
             socials[kind] = url
 
     emails = [a.get("href", "")[7:].split("?")[0] for a in soup.find_all("a") if (a.get("href") or "").lower().startswith("mailto:")]
-    emails += EMAIL_RE.findall(soup.get_text(" "))
+    page_text = soup.get_text(" ")
+    emails += EMAIL_RE.findall(page_text)
+    no_solicit = NO_SOLICIT_RE.search(page_text)
 
     page_host = host_of(page_url)
     booking_links = []
@@ -144,6 +156,12 @@ def detect(cfg: Config, html: str, page_url: str) -> dict:
         if (BOOKING_WORDS.search(text) or BOOKING_WORDS.search(urlsplit(url).path)) and url not in booking_links:
             if social_kind(url) is None:
                 booking_links.append(url)
+
+    contact_links = []
+    for url, text in anchors:
+        if host_of(url) == page_host and (CONTACT_WORDS.search(text) or CONTACT_WORDS.search(urlsplit(url).path.replace("-", " "))):
+            if url not in contact_links and url.rstrip("/") != page_url.rstrip("/"):
+                contact_links.append(url)
 
     best = max(scores, key=scores.get) if scores else None
     best_score = scores.get(best, 0.0) if best else 0.0
@@ -158,5 +176,7 @@ def detect(cfg: Config, html: str, page_url: str) -> dict:
         "emails": clean_emails(emails),
         "booking_links": booking_links[:5],
         "same_host_booking_links": [u for u in booking_links if host_of(u) == page_host][:3],
+        "contact_links": contact_links[:3],
+        "no_solicitation": " ".join(no_solicit.group(0).split()) if no_solicit else None,
         "title": (soup.title.get_text(strip=True)[:120] if soup.title else None),
     }

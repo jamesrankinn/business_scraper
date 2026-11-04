@@ -107,6 +107,11 @@ sources:
       - waxing studio
       - day spa
       - beauty salon
+      - tattoo shop
+      - massage therapy
+      - registered massage therapist
+      - med spa
+      - laser clinic
     max_pages_per_query: 3        # Google returns max 20 results/page, 60/query
     # Hard stop so a typo can't run up a bill. Each page = 1 billable request.
     max_requests_per_run: 300
@@ -121,7 +126,8 @@ sources:
     # Licence business types/subtypes are matched against these keywords
     # (the City consolidated its categories in 2024, so we match loosely and
     # then classify each business by name).
-    type_keywords: [barber, beauty, hair, nail, esthetic, aesthetic, tanning, cosmetic, spa, salon, personal service]
+    type_keywords: [barber, beauty, hair, nail, esthetic, aesthetic, tanning, cosmetic, spa, salon,
+                    massage, tattoo, personal service]
     only_status: Issued
 
   orgbook:
@@ -131,7 +137,8 @@ sources:
     search_terms: [barber, barbershop, "barber shop", barbering, salon, "hair salon", "hair studio",
                    hair, hairstyling, nails, "nail salon", "nail bar", "nail studio", tanning,
                    "tan studio", esthetics, aesthetics, lash, lashes, brow, brows, beauty,
-                   "beauty salon", spa, "day spa", waxing]
+                   "beauty salon", spa, "day spa", waxing, tattoo, tattoos, piercing, massage,
+                   "massage therapy", rmt, "med spa", medspa, "medical aesthetics", laser, botox]
     max_pages_per_term: 10        # 100 results/page; OrgBook stops at page 10
     # Registry names have no business type, and "Barber" is also a surname.
     # Names containing any of these words are skipped.
@@ -150,10 +157,12 @@ sources:
 #   default_staff  used when we have no better staff estimate
 #   revenue_per_staff_cad  annual service revenue per working chair/tech
 #   reviews_per_staff      Google reviews per staff member (staff estimate)
+#   noun           how outreach messages refer to the business ("barbershop")
 # -----------------------------------------------------------------------------
 categories:
   barber:
     label: Barbershop
+    noun: barbershop
     keywords: [barber, barbers, barbershop, barbering, fade, fades, "men's grooming", gentlemen, gents]
     google_types: [barber_shop]
     osm_tags: {hairdresser: [barber]}
@@ -163,6 +172,7 @@ categories:
     reviews_per_staff: 60
   tanning:
     label: Tanning
+    noun: tanning studio
     keywords: [tanning, "spray tan", "tan studio", "tan bar", sunless, bronze, bronzed, airbrush tan]
     google_types: [tanning_studio]
     osm_tags: {beauty: [tanning], leisure: [tanning_salon], shop: [tanning]}
@@ -170,8 +180,19 @@ categories:
     default_staff: 2
     revenue_per_staff_cad: 80000
     reviews_per_staff: 100
+  tattoo:
+    label: Tattoo & piercing
+    noun: tattoo studio
+    keywords: [tattoo, tattoos, tattooing, ink, piercing, piercings, "body art", "body piercing"]
+    google_types: [tattoo_shop, body_art_service]
+    osm_tags: {shop: [tattoo]}
+    fit: 0.8
+    default_staff: 4
+    revenue_per_staff_cad: 90000
+    reviews_per_staff: 60
   hair_salon:
     label: Hair salon
+    noun: salon
     keywords: [hair, hairstylist, hairdresser, coiffure, blowout, "blow dry", balayage, colour, color, cuts]
     weak_keywords: [salon, studio, stylist]
     google_types: [hair_salon, hair_care]
@@ -182,6 +203,7 @@ categories:
     reviews_per_staff: 50
   nails:
     label: Nail salon
+    noun: nail salon
     keywords: [nail, nails, manicure, pedicure, "mani pedi", "nail bar"]
     google_types: [nail_salon]
     osm_tags: {beauty: [nails]}
@@ -191,6 +213,7 @@ categories:
     reviews_per_staff: 50
   lash_brow:
     label: Lash & brow
+    noun: lash studio
     keywords: [lash, lashes, eyelash, brow, brows, microblading, threading, "lash lift"]
     google_types: []
     osm_tags: {beauty: [lashes, eyelashes, eyebrows, brows]}
@@ -198,15 +221,44 @@ categories:
     default_staff: 2
     revenue_per_staff_cad: 60000
     reviews_per_staff: 40
+  med_spa:
+    label: Med spa
+    noun: med spa
+    keywords: ["med spa", medspa, medispa, "medical spa", "medical aesthetics", "medical aesthetic",
+               botox, injectables, injector, filler, fillers, laser, "laser clinic", "skin clinic",
+               "cosmetic clinic", "aesthetic clinic", "aesthetics clinic", coolsculpting, hydrafacial]
+    google_types: [medical_spa]
+    osm_tags: {"healthcare:speciality": [cosmetic, aesthetic_medicine]}
+    fit: 0.85
+    default_staff: 4
+    revenue_per_staff_cad: 180000
+    reviews_per_staff: 40
+  massage:
+    label: Massage
+    noun: massage clinic
+    keywords: [massage, rmt, "registered massage", "massage therapy", reflexology, shiatsu, "deep tissue", bodywork]
+    google_types: [massage, massage_therapist, massage_spa]
+    osm_tags: {shop: [massage], "healthcare:speciality": [massage_therapy]}
+    fit: 0.7     # BC RMT clinics often need insurer direct billing; lower it if you don't offer that
+    default_staff: 4
+    revenue_per_staff_cad: 65000
+    reviews_per_staff: 35
   esthetics_spa:
     label: Esthetics / spa
-    keywords: [esthetic, esthetics, aesthetic, aesthetics, spa, facial, facials, skin, skincare, wax, waxing, laser, "med spa", medispa, beauty, makeup, cosmetic]
+    noun: spa
+    keywords: [esthetic, esthetics, aesthetic, aesthetics, spa, facial, facials, skin, skincare, wax, waxing, beauty, makeup, cosmetic]
     google_types: [spa, beauty_salon, beautician, skin_care_clinic, makeup_artist]
     osm_tags: {shop: [beauty], beauty: [spa, waxing, cosmetics, skin_care, facial]}
     fit: 0.85
     default_staff: 3
     revenue_per_staff_cad: 70000
     reviews_per_staff: 50
+
+# Businesses whose name or licence type contains any of these are dropped:
+# adult "body rub" businesses, dental clinics, pet groomers, supply wholesalers.
+exclude_keywords: ["body rub", "body-rub", bodyrub, erotic, sensual, dental, dentist, dentistry,
+                   orthodontic, orthodontics, veterinary, "pet grooming", "dog grooming",
+                   "beauty supply", "beauty supplies", "salon supply", "barber supply", wholesale]
 
 # Brands where software is usually chosen by head office. These still show up
 # in the report, flagged, with a low "decision maker" score.
@@ -229,6 +281,7 @@ franchise_brands:
   - palm beach tan
   - hand & stone
   - massage envy
+  - massage addict
   - the lash lounge
   - ulta
   - sephora
@@ -288,8 +341,11 @@ scoring:
     size_fit: 1.5          # team size inside our sweet spot
     business_volume: 1.5   # busy shops (reviews) feel scheduling pain most
     stability: 1.0         # years registered, operating status
-    reachability: 1.0      # do we have a phone / email / website
+    reachability: 1.5      # can we reach them by email / Instagram (see below)
     category_fit: 1.0      # barber vs nails vs tanning fit for our product
+  # Reachability = sum of the channels we have (max 1.0). Weighted toward
+  # email and Instagram DMs, your main outreach channels.
+  reachability: {email: 0.4, instagram: 0.35, phone: 0.15, website: 0.1}
   exclude_franchises: false
   # Tier thresholds on expected monthly value (CAD/mo)
   tiers: {A: 30, B: 15, C: 6}

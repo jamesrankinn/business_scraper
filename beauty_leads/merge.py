@@ -247,11 +247,21 @@ def assign_chains(cfg: Config, businesses: list[Business]) -> None:
             businesses[i].chain_locations = len(idxs)
 
 
+def excluded(cfg: Config, rec: Record) -> str | None:
+    """The exclude keyword found in a record's name or types, if any."""
+    text = " " + normalize_name(" ".join([rec.name or "", *(rec.types or [])])) + " "
+    for kw in cfg.get("exclude_keywords", []) or []:
+        if f" {normalize_name(kw)} " in text:
+            return kw
+    return None
+
+
 def merge_records(cfg: Config, records: Iterable[Record]) -> list[Business]:
     province = (cfg.get("region.province") or "").upper()
     usable = [
         r for r in records
         if not r.registry_only and r.name and (not r.province or not province or r.province.upper() == province)
+        and not excluded(cfg, r)
     ]
     businesses = [b for b in (build_business(cfg, g) for g in dedupe(cfg, usable)) if b]
     # Keys must be unique even if two groups share a primary record id.

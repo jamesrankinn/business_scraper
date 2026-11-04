@@ -26,6 +26,7 @@ COLUMN_ALIASES = {
     "phone": ["phone", "telephone", "phone number", "tel"],
     "website": ["website", "url", "web", "site"],
     "email": ["email", "e-mail", "email address"],
+    "instagram": ["instagram", "ig", "instagram handle", "insta"],
     "num_employees": ["employees", "number of employees", "numberofemployees", "staff", "chairs"],
     "rating": ["rating", "stars"],
     "review_count": ["reviews", "review count", "number of reviews"],
@@ -73,6 +74,8 @@ def collect(cfg: Config, http=None, file: str | None = None, **_) -> Iterator[Re
             # Ground truth from calls beats any estimate: keep it for scoring.
             if get("software"):
                 extra["known_software"] = get("software")
+            if get("instagram"):
+                extra["instagram"] = get("instagram")
             if get("monthly_spend"):
                 extra["known_monthly_spend_cad"] = _num(get("monthly_spend"))
             yield Record(

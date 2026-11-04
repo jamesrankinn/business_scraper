@@ -54,6 +54,13 @@ def check_website(cfg: Config, http: HttpClient, website: str | None) -> dict:
     found = detect(cfg, res.text, res.url)
     pages = [res.url]
 
+    def absorb(inner: dict) -> None:
+        """Merge contact details found on a sub-page."""
+        found["emails"] = list(dict.fromkeys(found["emails"] + inner["emails"]))
+        for kk, vv in inner["socials"].items():
+            found["socials"].setdefault(kk, vv)
+        found["no_solicitation"] = found.get("no_solicitation") or inner.get("no_solicitation")
+
     # 3. No software on the homepage: follow a couple of "Book now" links.
     if not found["software"]:
         for link in found["same_host_booking_links"] + [u for u in found["booking_links"] if u not in found["same_host_booking_links"]]:
@@ -75,19 +82,33 @@ def check_website(cfg: Config, http: HttpClient, website: str | None) -> dict:
                 found.update(software=k, confidence="high", evidence=[f"booking page redirects to: {sub.url[:120]}"])
                 break
             inner = detect(cfg, sub.text, sub.url)
-            found["emails"] = list(dict.fromkeys(found["emails"] + inner["emails"]))
-            for kk, vv in inner["socials"].items():
-                found["socials"].setdefault(kk, vv)
+            absorb(inner)
             if inner["software"]:
                 found.update(software=inner["software"], confidence=inner["confidence"],
                              evidence=inner["evidence"], all_software=inner["all_software"])
                 break
 
+    # 4. No email yet: emails usually live on the contact / about page.
+    if not found["emails"]:
+        for link in found.get("contact_links", []):
+            if link in pages or len(pages) > MAX_EXTRA_PAGES + 1:
+                continue
+            sub = http.get(link, crawl=True)
+            pages.append(link)
+            if sub.ok:
+                inner = detect(cfg, sub.text, sub.url)
+                absorb(inner)
+                if not found["software"] and inner["software"]:
+                    found.update(software=inner["software"], confidence=inner["confidence"],
+                                 evidence=inner["evidence"], all_software=inner["all_software"])
+            break
+
     software = found["software"]
     if not software:
         # A link-in-bio page with no booking platform means they book by DM.
         software = "social_only" if kind == "linktree" else "none_detected"
-    found.pop("same_host_booking_links", None)
+    for transient in ("same_host_booking_links", "contact_links"):
+        found.pop(transient, None)
     return _result("ok", software, **{k: v for k, v in found.items() if k not in ("software",)},
                    pages_checked=pages, final_url=res.url, host=host_of(res.url))
 

@@ -1,9 +1,10 @@
 # beauty-leads
 
-Finds barbershops, hair salons, nail salons, tanning studios, lash/brow and esthetics businesses
-across British Columbia, works out which booking software each one uses (Vagaro, Fresha, Booksy,
-Square, Squire, GlossGenius…), estimates what they pay for it and what they can afford, and ranks
-every business by **expected monthly value**: what the lead is worth to you per month if you pitch it.
+Finds barbershops, hair salons, nail salons, tanning studios, lash/brow, esthetics, massage, tattoo
+and med spa businesses across British Columbia, works out which booking software each one uses
+(Vagaro, Fresha, Booksy, Square, Squire, Jane, GlossGenius…), estimates what they pay for it and what
+they can afford, and ranks every business by **expected monthly value**: what the lead is worth to
+you per month if you pitch it. It then drafts a tailored email or Instagram DM for each lead.
 
 ```
  collect                 merge               enrich                        score              export
@@ -94,6 +95,23 @@ Everything is cached in `data/`, so re-running a step doesn't re-download pages 
 scrape it. Google Places covers the same businesses with more data. If you get a Yellow Pages export
 some other way, import it as a CSV.
 
+### Why it doesn't scrape the Vagaro, Fresha or Booksy directories
+
+Listing every Vagaro/Fresha/Booksy shop in BC straight from their "find a salon" pages would be the
+fastest way to find competitor customers. All three forbid it (checked November 2026):
+
+| Platform | robots.txt | Terms |
+|---|---|---|
+| Vagaro | Blocks every crawler not on its named allowlist (`User-agent: * / Disallow: /`); even search engines are kept out of `/salons/` | [User Agreement](https://www.vagaro.com/user-agreement-2015): no robots, spiders or other automated means to retrieve, scrape or index the site |
+| Fresha | Allows crawling and publishes a salon sitemap | [Terms of Use](https://terms.fresha.com/terms-use) (updated 12 Aug 2026): no scraping, crawlers or robots; non-commercial use only; no use "to design or build a competitive product" |
+| Booksy | Allows category/city listings and profiles | [Terms of Service](https://booksy.com/en-ca/p/terms): no "robot, spider, scraper"; personal use only; no use "for competitive analysis or benchmarking" |
+
+Paid third-party "Booksy/Fresha/Vagaro scrapers" exist, but using them still breaks these terms.
+This tool gets the same answer from sources the businesses publish themselves: their **own
+website** (a "Book now" button to vagaro.com) and their **Google listing** (many list
+`booksy.com/...` or `vagaro.com/...` as their website). Booking-platform pages are never fetched;
+recognising the link is enough.
+
 To get a Google key: [Google Cloud Console](https://console.cloud.google.com/) → create a project →
 enable **Places API (New)** → Credentials → API key. Restrict the key to the Places API.
 
@@ -103,6 +121,8 @@ enable **Places API (New)** → Credentials → API key. Restrict the key to the
 
 * **Summary**: totals, a breakdown by software (locations, what they pay now, our potential and
   expected MRR) and tier counts
+* **Email outreach** / **Instagram outreach**: each lead once, on its best channel, with a drafted
+  email or DM (see below)
 * **Leads**: one row per location, sorted by expected monthly value, with contact details, detected
   software and evidence, estimated spend, our price, savings, staff, revenue, every matrix factor, a
   pitch line and a plain-English "why"
@@ -110,7 +130,37 @@ enable **Places API (New)** → Credentials → API key. Restrict the key to the
 * **Registry-only**: registered beauty businesses with no listing found anywhere (names only)
 * **Assumptions**: every price and weight used
 
-`report.html` has the same data as a filterable page. Tap a lead to see its factors and pitch.
+`report.html` has the same data as a filterable page. Filter by "Reach via", tap a lead to see its
+factors, and copy its drafted DM or email.
+
+`outreach.csv` (plus `outreach_email.csv` and `outreach_instagram.csv`) is ready for a mail-merge or
+a DM session.
+
+## Outreach: email and Instagram
+
+Each lead gets one channel, in this order:
+
+1. **Email**, if its website publishes an address and doesn't say "no solicitation"
+2. **Instagram**, from its website, Google listing, OpenStreetMap or your CSV
+3. **Phone**, when that's all there is
+
+Drafts are tailored to the lead's situation. A Vagaro shop we'd save money hears "shops your size on
+Vagaro usually pay ~$250/mo; ours is $200". A Square shop hears about deposits and no-shows. A shop
+with no online booking hears about a booking link for their bio. Edit the wording in
+`config/outreach.yaml`, and **fill in `sender:` first**: the drafts say CHANGE-ME until you do.
+
+**The tool never sends anything.** You send each message yourself:
+
+* **Instagram** forbids automated or bulk DMs and restricts accounts that send them. Send by hand,
+  personalise the first line, and keep it to a modest number a day.
+* **Email (CASL).** Canada's anti-spam law lets you email an address a business has *published*,
+  about something relevant to the business, unless it says it doesn't want unsolicited messages.
+  The tool checks each site for that kind of notice ("no solicitation") and moves those leads off
+  email. Every email must identify you, include a mailing address, and offer an unsubscribe that you
+  honour within 10 business days. The template footer covers this once `sender:` is filled in. CASL
+  can also apply to DMs, so treat them the same way: relevant, identify yourself, stop when asked.
+* Spend figures in the drafts are estimates, so the wording says "usually" and "around". Keep it that
+  way.
 
 ## The decision matrix
 
@@ -176,12 +226,13 @@ Reported software, spend and chair counts override every estimate for that busin
 ## Being a good citizen
 
 * Website checks identify themselves (set a real contact in `http.user_agent`), obey `robots.txt`,
-  wait 1.5 s between requests to the same site, and look at no more than 3 pages per business.
+  wait 1.5 s between requests to the same site, and look at no more than 4 pages per business
+  (homepage, up to two "Book" pages, one contact page).
+* Adult "body rub" businesses, dental clinics, pet groomers and supply wholesalers are dropped
+  (`exclude_keywords`).
 * Only public business information is collected.
-* **Contacting leads:** commercial email in Canada is governed by CASL. Business emails that are
-  conspicuously published may be emailed about things relevant to the business, unless the site says
-  it doesn't want unsolicited messages. Always identify yourself and include an unsubscribe option.
-  Check the rules for your situation before you run a campaign.
+* **Contacting leads:** see "Outreach" above. This is a practical summary, not legal advice; check
+  the rules for your situation before you run a campaign.
 
 ## Development
 

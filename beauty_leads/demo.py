@@ -5,6 +5,7 @@ report without API keys. Every name is invented, websites use the reserved
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .categories import classify_text
@@ -50,6 +51,12 @@ DEMO = [
     ("Blush & Bloom Beauty", "beauty_salon", "Maple Ridge", "22709 Lougheed Hwy", 39, 4.4, None, "social_only", None),
     ("Harmony Day Spa", "spa", "Courtenay", "2401 Cliffe Ave", 143, 4.5, "EXPENSIVE", "booker", None),
     ("Zen Den Massage & Spa", "spa", "Port Coquitlam", "2850 Shaughnessy St", 18, 3.2, None, "none_detected", None),
+    ("Inkwell Tattoo Collective", "tattoo_shop", "Victoria", "560 Johnson St", 310, 4.9, "EXPENSIVE", "social_only", None),
+    ("Black Alder Tattoo", "tattoo_shop", "Kelowna", "1460 Pandosy St", 142, 4.8, "MODERATE", "none_detected", None),
+    ("Stillwater Massage Therapy", "massage", "Kelowna", "1890 Cooper Rd", 205, 4.9, "MODERATE", "clinicsense", None),
+    ("Kneaded RMT Clinic", "massage", "Vancouver", "1255 Commercial Dr", 330, 4.8, "MODERATE", "jane", None),
+    ("Lumen Med Spa", "medical_spa", "Vancouver", "1037 W Broadway", 260, 4.7, "VERY_EXPENSIVE", "aesthetic_record", None),
+    ("Glow Lab Medical Aesthetics", "medical_spa", "Surrey", "15300 Croydon Dr", 175, 4.6, "EXPENSIVE", "vagaro", None),
 ]
 
 FINGERPRINT_URL = {
@@ -66,13 +73,20 @@ FINGERPRINT_URL = {
     "acuity": "https://{slug}.as.me",
     "jane": "https://{slug}.janeapp.com",
     "booker": "https://go.booker.com/location/{slug}",
+    "clinicsense": "https://{slug}.clinicsense.com/book",
+    "aesthetic_record": "https://booking.aestheticrecord.com/{slug}",
 }
 AREA = {"Victoria": "250", "Nanaimo": "250", "Kelowna": "250", "Kamloops": "250", "Penticton": "250",
         "Vernon": "250", "Prince George": "250", "Courtenay": "250"}
 
 
+def _handle(slug: str) -> str:
+    # "demo_" prefix keeps these from pointing at real accounts.
+    return ("demo_" + slug.replace("-", ""))[:30]
+
+
 def _slug(name: str) -> str:
-    return "".join(c if c.isalnum() else "-" for c in name.lower()).strip("-").replace("--", "-")
+    return re.sub(r"-+", "-", "".join(c if c.isalnum() else "-" for c in name.lower())).strip("-")
 
 
 def build_demo(cfg: Config, db: Database) -> None:
@@ -80,7 +94,7 @@ def build_demo(cfg: Config, db: Database) -> None:
     for i, (name, gtype, city, street, reviews, rating, price, software, note) in enumerate(DEMO, 1):
         slug = _slug(name)  # chain locations share a website, which is how chains are detected
         website = None if software == "no_website" else (
-            f"https://instagram.com/{slug.replace('-', '')}" if software == "social_only" else f"https://{slug}.example")
+            f"https://instagram.com/{_handle(slug)}" if software == "social_only" else f"https://{slug}.example")
         phone = f"({AREA.get(city, '604')}) 555-01{i:02d}"
         records.append(Record(
             source="google", source_id=f"demo-{i:03d}", name=name, types=[gtype, "point_of_interest"],
@@ -95,12 +109,16 @@ def build_demo(cfg: Config, db: Database) -> None:
                 checks[key] = {"status": "fetch_failed", "software": "unknown", "error": "timeout"}
             elif software == "none_detected":
                 checks[key] = {"status": "ok", "software": "none_detected", "confidence": None, "evidence": [],
-                               "site_builder": "wix", "socials": {}, "emails": [f"hello@{slug}.example"]}
+                               "site_builder": "wix",
+                               "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"} if i % 2 else {},
+                               "emails": [f"hello@{slug}.example"],
+                               # One site asks not to be solicited, so CASL routes it away from email.
+                               "no_solicitation": "No solicitation" if name.startswith("Riverbend") else None}
             else:
                 url = FINGERPRINT_URL[software].format(slug=slug)
                 checks[key] = {"status": "ok", "software": software, "confidence": "high",
                                "evidence": [f'"Book now" button: {url}'], "site_builder": "squarespace",
-                               "socials": {"instagram": f"https://instagram.com/{slug.replace('-', '')}"},
+                               "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"},
                                "emails": [f"bookings@{slug}.example"] if i % 3 else []}
         if i % 4 != 0 and name.upper() not in {r.name for r in registry}:
             year = 2008 + (i * 7) % 17

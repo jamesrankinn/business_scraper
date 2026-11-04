@@ -10,15 +10,18 @@ from pathlib import Path
 
 from .config import Config
 from .normalize import name_key
+from .outreach import draft, outreach_rows, sender_is_configured
 from .scoring import Assessment, accounts, market_summary
 
 LEAD_COLUMNS = [
     "tier", "expected_mrr_cad", "potential_mrr_cad", "close_probability", "fit_score",
-    "name", "category", "city", "address", "phone", "email", "website", "instagram",
+    "name", "category", "city", "address", "channel", "email", "email_ok", "instagram", "instagram_url",
+    "phone", "website",
     "software", "software_confidence", "current_spend_cad", "current_spend_source",
     "our_price_cad", "savings_cad", "staff_est", "staff_source", "annual_revenue_est_cad",
     "software_budget_cad", "rating", "reviews", "price_level", "years_registered", "entity_type",
     "chain_locations", "franchise", "site_builder", "ltv_cad", "pitch", "why", "software_evidence",
+    "no_solicitation",
     "excluded_reason", "google_maps_url", "sources", "chain_key", "business_key",
 ]
 
@@ -95,8 +98,18 @@ def export_all(cfg: Config, assessments: list[Assessment], out_dir: str | Path, 
     paths["summary_json"] = out / "summary.json"
     paths["summary_json"].write_text(json.dumps(summary, indent=2))
 
+    outreach = outreach_rows(cfg, assessments)
+    email_rows = [r for r in outreach if r["channel"] == "email"]
+    dm_rows = [r for r in outreach if r["channel"] == "instagram"]
+    paths["outreach_csv"] = out / "outreach.csv"
+    _write_csv(paths["outreach_csv"], outreach, OUTREACH_COLUMNS)
+    paths["outreach_email_csv"] = out / "outreach_email.csv"
+    _write_csv(paths["outreach_email_csv"], email_rows, OUTREACH_COLUMNS)
+    paths["outreach_instagram_csv"] = out / "outreach_instagram.csv"
+    _write_csv(paths["outreach_instagram_csv"], dm_rows, OUTREACH_COLUMNS)
+
     paths["xlsx"] = out / "leads.xlsx"
-    write_xlsx(paths["xlsx"], leads, accts, summary, reg_rows, assumptions_rows(cfg))
+    write_xlsx(paths["xlsx"], leads, accts, summary, reg_rows, assumptions_rows(cfg), email_rows, dm_rows)
 
     paths["html"] = out / "report.html"
     paths["html"].write_text(render_html(cfg, assessments, summary, demo=demo, limit=html_limit), encoding="utf-8")
@@ -104,8 +117,16 @@ def export_all(cfg: Config, assessments: list[Assessment], out_dir: str | Path, 
 
 
 # --- Excel -----------------------------------------------------------------
+OUTREACH_COLUMNS = [
+    "tier", "expected_mrr_cad", "business", "city", "category", "channel", "email", "instagram",
+    "instagram_url", "phone", "software", "current_spend_cad", "our_price_cad", "message_group",
+    "email_subject", "email_body", "dm_text", "no_solicitation", "website", "google_maps_url", "business_key",
+]
+
+
 def write_xlsx(path: Path, leads: list[dict], accts: list[dict], summary: dict,
-               reg_rows: list[dict], assumptions: list[dict]) -> None:
+               reg_rows: list[dict], assumptions: list[dict],
+               email_rows: list[dict] | None = None, dm_rows: list[dict] | None = None) -> None:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -151,6 +172,10 @@ def write_xlsx(path: Path, leads: list[dict], accts: list[dict], summary: dict,
     widths = {"name": 32, "address": 40, "why": 80, "pitch": 60, "software_evidence": 50, "website": 30, "email": 28}
     lead_cols = LEAD_COLUMNS + [c for c in (leads[0] if leads else {}) if c.startswith("f_")]
     sheet(wb.create_sheet("Leads"), leads, lead_cols, widths)
+    out_widths = {"business": 30, "email": 30, "instagram": 22, "email_subject": 40, "email_body": 80,
+                  "dm_text": 80, "instagram_url": 36}
+    sheet(wb.create_sheet("Email outreach"), email_rows or [], OUTREACH_COLUMNS, out_widths)
+    sheet(wb.create_sheet("Instagram outreach"), dm_rows or [], OUTREACH_COLUMNS, out_widths)
     sheet(wb.create_sheet("Accounts"), accts, None, {"account": 32, "pitch": 60, "cities": 30})
     sheet(wb.create_sheet("Registry-only"), reg_rows, None, {"name": 40, "orgbook_url": 50})
     sheet(wb.create_sheet("Assumptions"), assumptions, None, {"setting": 40, "value": 100})
@@ -169,12 +194,15 @@ def render_html(cfg: Config, assessments: list[Assessment], summary: dict, demo:
         f = a.flat()
         rows.append({k: f.get(k) for k in (
             "tier", "expected_mrr_cad", "potential_mrr_cad", "close_probability", "fit_score", "name",
-            "category", "city", "address", "phone", "email", "website", "instagram", "software",
+            "category", "city", "address", "phone", "email", "website", "instagram", "instagram_url",
+            "channel", "email_ok", "no_solicitation", "software",
             "software_confidence", "current_spend_cad", "our_price_cad", "savings_cad", "staff_est",
             "staff_source", "rating", "reviews", "years_registered", "chain_locations", "franchise",
             "pitch", "why", "software_evidence", "excluded_reason", "google_maps_url")})
         rows[-1]["category_label"] = cfg.categories.get(a.business.category, {}).get("label", a.business.category)
         rows[-1]["factors"] = {k: round(v, 2) for k, v in a.factors.items()}
+        if not a.excluded_reason and a.channel != "none":
+            rows[-1].update({k: v for k, v in draft(cfg, a).items() if k in ("email_subject", "email_body", "dm_text")})
 
     sw_rows = "".join(
         f"<tr><td>{html.escape(name)}</td><td class='n'>{s['locations']:,}</td>"
@@ -304,12 +332,22 @@ tr.detail td {{ background: var(--bg); }}
 .factors .track {{ height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }}
 .factors .fill {{ display: block; height: 100%; background: var(--accent); }}
 .contact {{ font-family: var(--mono); font-size: 13px; user-select: all; }}
+.chip.ch-email {{ color: var(--tier-a); border-color: var(--tier-a); }}
+.chip.ch-instagram {{ color: var(--tier-b); border-color: var(--tier-b); }}
+.chip.ch-none {{ color: var(--tier-x); border-color: var(--tier-x); }}
+.warn {{ background: var(--warn-bg); color: var(--warn-fg); padding: 6px 10px; border-radius: 6px; font-size: 13px; }}
+.draft {{ border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 10px 12px; margin: 0 0 10px; max-width: 72ch; }}
+.draft-head {{ display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 13px; }}
+.draft p, .draft pre {{ margin: 0; font: 14px/1.5 var(--body); white-space: pre-wrap; overflow-wrap: anywhere; }}
+.copy {{ font: 600 12px var(--body); color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 5px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }}
 a {{ color: var(--accent); }}
 .how {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 28px; font-size: 14px; color: var(--muted); }}
 .how p {{ margin: 0; max-width: 65ch; }}
 .how b {{ color: var(--fg); }}
 @media (max-width: 720px) {{
-  .detail-grid {{ grid-template-columns: 1fr; }}
+  /* The lead table scrolls sideways on phones; keep the open lead's details on screen. */
+  .detail-grid {{ grid-template-columns: 1fr; position: sticky; left: 0;
+    width: calc(100vw - 2 * max(16px, env(safe-area-inset-left, 0px)) - 26px); }}
   .hide-sm {{ display: none; }}
 }}
 @media (prefers-reduced-motion: reduce) {{ * {{ transition: none !important; }} }}
@@ -343,6 +381,7 @@ a {{ color: var(--accent); }}
       <label for="f-cat">Category<select id="f-cat"><option value="">All</option></select></label>
       <label for="f-city">City<select id="f-city"><option value="">All</option></select></label>
       <label for="f-sw">Software<select id="f-sw"><option value="">All</option></select></label>
+      <label for="f-ch">Reach via<select id="f-ch"><option value="">All</option><option value="email">Email</option><option value="instagram">Instagram</option><option value="phone">Phone only</option><option value="none">No contact</option></select></label>
     </div>
     <div class="scroll"><table id="leads">
       <thead><tr>
@@ -396,10 +435,10 @@ a {{ color: var(--accent); }}
     const f = d.factors || {{}};
     const bars = Object.entries(f).map(([k, v]) =>
       `<span>${{esc(k.replace(/_/g, " "))}}</span><span class="track"><span class="fill" style="width:${{v * 100}}%"></span></span><span class="n">${{v.toFixed(2)}}</span>`).join("");
-    const contact = [d.phone, d.email].filter(Boolean).map((c) => `<span class="contact">${{esc(c)}}</span>`).join(" · ");
+    const contact = [d.email_ok ? d.email : "", d.instagram, d.phone].filter(Boolean).map((c) => `<span class="contact">${{esc(c)}}</span>`).join(" · ");
     const links = [
       d.website ? `<a href="${{esc(d.website)}}" target="_blank" rel="noopener">website</a>` : "",
-      d.instagram ? `<a href="${{esc(d.instagram)}}" target="_blank" rel="noopener">instagram</a>` : "",
+      d.instagram_url ? `<a href="${{esc(d.instagram_url)}}" target="_blank" rel="noopener">instagram</a>` : "",
       d.google_maps_url ? `<a href="${{esc(d.google_maps_url)}}" target="_blank" rel="noopener">map</a>` : "",
     ].filter(Boolean).join(" · ");
     return `<tr class="detail"><td colspan="8"><div class="detail-grid">
@@ -408,7 +447,10 @@ a {{ color: var(--accent); }}
         <p><b>Why:</b> ${{esc(d.why)}}</p>
         ${{d.software_evidence ? `<p class="sub2">Evidence: ${{esc(d.software_evidence)}}</p>` : ""}}
         ${{d.excluded_reason ? `<p><b>Excluded:</b> ${{esc(d.excluded_reason)}}</p>` : ""}}
-        <p>${{contact || '<span class="sub2">No phone or email found</span>'}}</p>
+        <p>${{contact || '<span class="sub2">No email, Instagram or phone found</span>'}}</p>
+        ${{d.no_solicitation ? `<p class="warn">Site says "${{esc(d.no_solicitation)}}". Don't cold-email; try Instagram or a call.</p>` : ""}}
+        ${{d.dm_text && d.instagram ? `<div class="draft"><div class="draft-head"><b>Instagram DM</b><button type="button" class="copy" data-copy="dm">Copy</button></div><p>${{esc(d.dm_text)}}</p></div>` : ""}}
+        ${{d.email_body && d.email_ok ? `<div class="draft"><div class="draft-head"><b>Email: ${{esc(d.email_subject)}}</b><button type="button" class="copy" data-copy="email">Copy</button></div><pre>${{esc(d.email_body)}}</pre></div>` : ""}}
         <p class="sub2">${{esc(d.address || "")}} ${{links ? "· " + links : ""}}</p>
       </div>
       <div class="factors" aria-label="Decision matrix factors">${{bars}}</div>
@@ -417,10 +459,11 @@ a {{ color: var(--accent); }}
 
   function render() {{
     const q = $("#q").value.trim().toLowerCase();
-    const tier = $("#f-tier").value, cat = $("#f-cat").value, city = $("#f-city").value, sw = $("#f-sw").value;
+    const tier = $("#f-tier").value, cat = $("#f-cat").value, city = $("#f-city").value, sw = $("#f-sw").value, ch = $("#f-ch").value;
     const rows = DATA.filter((d) =>
       (!tier || d.tier === tier) && (!cat || d.category === cat) && (!city || d.city === city) && (!sw || d.software === sw) &&
-      (!q || [d.name, d.city, d.phone, d.email, d.address, d.software].join(" ").toLowerCase().includes(q)));
+      (!ch || d.channel === ch) &&
+      (!q || [d.name, d.city, d.phone, d.email, d.instagram, d.address, d.software].join(" ").toLowerCase().includes(q)));
     rows.sort((a, b) => {{
       const x = a[sortKey], y = b[sortKey];
       if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
@@ -430,9 +473,10 @@ a {{ color: var(--accent); }}
     tbody.innerHTML = shown.map((d, i) => {{
       const id = d.name + "|" + (d.address || "");
       const sub = [CATS[d.category] || d.category, d.city, d.chain_locations > 1 ? d.chain_locations + " locations" : "", d.franchise ? "franchise" : ""].filter(Boolean).join(" · ");
+      const reach = {{email: "email", instagram: "Instagram", phone: "phone only", none: "no contact"}}[d.channel] || "";
       const row = `<tr class="row" data-id="${{esc(id)}}" tabindex="0" aria-expanded="${{open.has(id)}}">
         <td><span class="pill t-${{esc(d.tier)}}">${{esc(d.tier)}}</span></td>
-        <td><div class="biz">${{esc(d.name)}}</div><div class="sub2">${{esc(sub)}}</div></td>
+        <td><div class="biz">${{esc(d.name)}}</div><div class="sub2">${{esc(sub)}} <span class="chip ch-${{esc(d.channel)}}">${{esc(reach)}}</span></div></td>
         <td>${{esc(d.software)}}${{d.software_confidence ? ` <span class="chip">${{esc(d.software_confidence)}}</span>` : ""}}</td>
         <td class="n">${{money(d.current_spend_cad)}}</td>
         <td class="n">${{money(d.our_price_cad)}}</td>
@@ -449,7 +493,19 @@ a {{ color: var(--accent); }}
     open.has(id) ? open.delete(id) : open.add(id);
     render();
   }}
-  tbody.addEventListener("click", (e) => {{ const tr = e.target.closest("tr.row"); if (tr && !e.target.closest("a")) toggle(tr); }});
+  tbody.addEventListener("click", (e) => {{
+    const btn = e.target.closest("button.copy");
+    if (btn) {{
+      const id = btn.closest("tr.detail").previousElementSibling.dataset.id;
+      const d = DATA.find((x) => x.name + "|" + (x.address || "") === id);
+      const text = btn.dataset.copy === "dm" ? d.dm_text : `Subject: ${{d.email_subject}}\n\n${{d.email_body}}`;
+      const done = () => {{ btn.textContent = "Copied"; setTimeout(() => (btn.textContent = "Copy"), 1500); }};
+      const fallback = () => {{ const r = document.createRange(); r.selectNodeContents(btn.closest(".draft").querySelector("p, pre")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected: press Ctrl/Cmd+C"; }};
+      try {{ navigator.clipboard.writeText(text).then(done, fallback); }} catch (err) {{ fallback(); }}
+      return;
+    }}
+    const tr = e.target.closest("tr.row"); if (tr && !e.target.closest("a")) toggle(tr);
+  }});
   tbody.addEventListener("keydown", (e) => {{ const tr = e.target.closest("tr.row"); if (tr && (e.key === "Enter" || e.key === " ")) {{ e.preventDefault(); toggle(tr); }} }});
   document.querySelectorAll("#leads th button").forEach((btn) => btn.addEventListener("click", () => {{
     const k = btn.dataset.k;
@@ -459,7 +515,7 @@ a {{ color: var(--accent); }}
     btn.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
     render();
   }}));
-  ["#q", "#f-tier", "#f-cat", "#f-city", "#f-sw"].forEach((s) => $(s).addEventListener("input", render));
+  ["#q", "#f-tier", "#f-cat", "#f-city", "#f-sw", "#f-ch"].forEach((s) => $(s).addEventListener("input", render));
   render();
 }})();
 </script>"""

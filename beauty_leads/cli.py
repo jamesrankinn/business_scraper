@@ -129,8 +129,16 @@ def cmd_export(args) -> int:
     out = Path(args.out or cfg.base_dir / "reports")
     paths = export_all(cfg, assessments, out, db=db)
     for k, p in paths.items():
-        print(f"{k:18} {p}")
+        print(f"{k:22} {p}")
+    _warn_sender(cfg)
     return 0
+
+
+def _warn_sender(cfg) -> None:
+    from .outreach import sender_is_configured
+    if not sender_is_configured(cfg):
+        print("\nnote: the outreach drafts still say CHANGE-ME. Fill in `sender:` in config/outreach.yaml\n"
+              "      (name, business, email, mailing address) before sending anything.")
 
 
 def cmd_run(args) -> int:
@@ -157,7 +165,7 @@ def cmd_demo(args) -> int:
     paths = run_demo(args.out, args.config)
     print("Demo report (fictional businesses):")
     for k, p in paths.items():
-        print(f"  {k:18} {p}")
+        print(f"  {k:22} {p}")
     return 0
 
 

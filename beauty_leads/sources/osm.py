@@ -25,11 +25,14 @@ area["ISO3166-2"="{iso}"]->.a;
   nwr["shop"="tanning"](area.a);
   nwr["leisure"="tanning_salon"](area.a);
   nwr["beauty"](area.a);
+  nwr["shop"="massage"](area.a);
+  nwr["shop"="tattoo"](area.a);
+  nwr["healthcare:speciality"~"massage|cosmetic|aesthetic"](area.a);
 );
 out center tags;
 """
 
-TYPE_TAGS = ("shop", "beauty", "hairdresser", "leisure", "amenity")
+TYPE_TAGS = ("shop", "beauty", "hairdresser", "leisure", "amenity", "healthcare", "healthcare:speciality")
 
 
 def _first(tags: dict, *keys: str) -> str | None:

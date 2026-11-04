@@ -13,6 +13,7 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "default.yaml"
 DEFAULT_CATALOG = PROJECT_ROOT / "config" / "software_catalog.yaml"
+DEFAULT_OUTREACH = PROJECT_ROOT / "config" / "outreach.yaml"
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -30,6 +31,7 @@ class Config:
     raw: dict
     catalog: dict
     base_dir: Path = field(default=PROJECT_ROOT)
+    outreach: dict = field(default_factory=dict)
 
     # --- convenience accessors -------------------------------------------
     def get(self, dotted: str, default: Any = None) -> Any:
@@ -108,4 +110,9 @@ def load_config(
 
     with open(catalog_path or DEFAULT_CATALOG, encoding="utf-8") as fh:
         catalog = yaml.safe_load(fh) or {}
-    return Config(raw=raw, catalog=catalog, base_dir=base_dir)
+    with open(DEFAULT_OUTREACH, encoding="utf-8") as fh:
+        outreach = yaml.safe_load(fh) or {}
+    # A user config may override any part of it under an `outreach:` key
+    # (typically just `sender:`).
+    outreach = _deep_merge(outreach, raw.get("outreach") or {})
+    return Config(raw=raw, catalog=catalog, base_dir=base_dir, outreach=outreach)

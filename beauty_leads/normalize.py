@@ -174,6 +174,37 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+IG_RESERVED = {"p", "reel", "reels", "explore", "stories", "accounts", "about", "developer", "legal",
+               "direct", "tv", "s", "share", "web", "privacy", "help", "instagram"}
+_IG_HANDLE = re.compile(r"[A-Za-z0-9._]{1,30}")
+
+
+def instagram_handle(value: str | None) -> str | None:
+    """'https://www.instagram.com/Fade.House/?hl=en' or '@fade.house' -> 'fade.house'."""
+    if not value:
+        return None
+    v = value.strip()
+    if v.startswith("@"):
+        handle = v[1:]
+    elif "instagram.com" in v.lower() or "instagr.am" in v.lower():
+        try:
+            path = urlsplit(ensure_scheme(v)).path
+        except ValueError:
+            return None
+        parts = [p for p in path.split("/") if p]
+        if not parts:
+            return None
+        handle = parts[0]
+    elif "/" in v or "." not in v and " " in v:
+        return None
+    else:
+        handle = v
+    handle = handle.strip().lower()
+    if not _IG_HANDLE.fullmatch(handle) or handle in IG_RESERVED or handle.strip(".") == "":
+        return None
+    return handle
+
+
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}")
 _BAD_EMAIL_PARTS = ("example.", "sentry", "wixpress", "@2x", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
                     "domain.com", "email.com", "yourname", "name@", "user@")

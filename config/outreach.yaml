@@ -1,0 +1,114 @@
+# =============================================================================
+# Outreach drafts: one email and one Instagram DM per lead, picked by the
+# lead's situation. Edit freely. Nothing is sent automatically; you send them
+# from your own inbox / Instagram so every message stays personal (automated
+# DMs break Instagram's rules and get accounts restricted).
+#
+# Placeholders:
+#   {business} {city} {noun} {nouns}                  the lead
+#   {staff}                                           estimated team size (rough:
+#                                                     avoid stating it to the owner)
+#   {software} {spend} {price} {savings}              what they use, what it
+#                                                     costs (estimate), our price
+#   {sender_name} {sender_business} {sender_contact} {sender_address}
+#
+# Spend figures are ESTIMATES, so the wording says "usually" / "around".
+# Never state an estimate as their actual bill.
+# =============================================================================
+
+# Fill this in before sending anything. CASL requires every commercial email
+# to identify you, give a mailing address and contact info, and offer a
+# working unsubscribe that you honour within 10 business days.
+sender:
+  name: CHANGE-ME Your Name
+  business: CHANGE-ME Your Company
+  email: CHANGE-ME@example.com
+  phone: ""
+  website: ""
+  mailing_address: CHANGE-ME mailing address, City, BC
+
+# Which template a lead gets (decided in beauty_leads/outreach.py):
+#   save_money  they pay for software and we'd be cheaper
+#   premium     they're on a well-liked premium tool (switchability <= 0.3)
+#   features    we'd cost the same or more: sell on features
+#   no_booking  no online booking found (phone / DMs / no website)
+#   unknown     we couldn't tell what they use
+templates:
+  save_money:
+    email_subject: "A lower-cost alternative to {software} for {business}"
+    email_body: |
+      Hi {business} team,
+
+      I noticed you take bookings through {software}. For a {noun} your size, {software} usually works out to about {spend}/month once the add-ons are in.
+
+      I run {sender_business}, booking software built for {nouns} here in BC. For a team your size it's {price}/month, with reminders, deposits and client texts included.
+
+      Would a 10-minute look be worth it? I can put it side by side with what you pay now.
+    dm: >-
+      Hi {business}! I build booking software for BC {nouns}. Shops your size on {software}
+      usually pay around {spend}/mo once add-ons are in. Ours is {price}/mo with reminders and
+      deposits included. Want me to send a quick comparison? No worries if not!
+
+  premium:
+    email_subject: "{software} alternative for {business}"
+    email_body: |
+      Hi {business} team,
+
+      I can see you book through {software}. It's a strong product, so I'll keep this short.
+
+      I run {sender_business}, booking software built for {nouns} in BC. It covers the day-to-day essentials (online booking, deposits, reminders, client texts) for {price}/month for a team your size.
+
+      If {software}'s cost or contract ever comes up for review, I'd be glad to show you a comparison.
+    dm: >-
+      Hi {business}! I build booking software for BC {nouns}. If {software}'s pricing ever comes
+      up for review, we cover booking, deposits and reminders for about {price}/mo for a team your
+      size. Happy to send details anytime!
+
+  features:
+    email_subject: "Fewer no-shows at {business}"
+    email_body: |
+      Hi {business} team,
+
+      I noticed you book through {software}. I run {sender_business}, booking software made specifically for {nouns}: deposits, no-show protection, waitlists and automatic rebooking reminders.
+
+      For your team it's {price}/month. If no-shows or rebooking are ever a headache, I'd be glad to show you how it works next to {software}.
+    dm: >-
+      Hi {business}! I build booking software just for {nouns}: deposits, no-show protection,
+      waitlists and rebooking reminders. If no-shows are ever a headache, happy to show you how it
+      compares to {software}. No worries if not!
+
+  no_booking:
+    email_subject: "Online booking for {business}"
+    email_body: |
+      Hi {business} team,
+
+      I couldn't find a way to book {business} online, so I'm guessing appointments come in by phone or messages.
+
+      I run {sender_business}. It gives you a booking link clients can use any time, takes a deposit up front and sends reminders, so there are fewer no-shows and less time spent on the phone. For your team it's {price}/month.
+
+      Would a quick demo be useful?
+    dm: >-
+      Hi {business}! Do most of your bookings come through DMs? I build a simple booking link for
+      {nouns}: clients book 24/7, pay a deposit and get reminders, so fewer no-shows. It's
+      {price}/mo. Want a quick demo?
+
+  unknown:
+    email_subject: "Booking software for {business}"
+    email_body: |
+      Hi {business} team,
+
+      Quick question: what do you use for bookings right now?
+
+      I run {sender_business}, booking software built for {nouns} in BC, with deposits, reminders and client texts included, from {price}/month for a team your size. Happy to show you how it compares with what you have.
+    dm: >-
+      Hi {business}! What do you use for bookings right now? I build booking software for BC
+      {nouns} and I'm happy to show how it compares. No worries if not!
+
+# Added to the end of every email (CASL identification + unsubscribe).
+email_footer: |
+
+  {sender_name}
+  {sender_business} · {sender_contact}
+  {sender_address}
+
+  Not interested? Reply "unsubscribe" and I won't email you again.

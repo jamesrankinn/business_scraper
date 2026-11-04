@@ -56,11 +56,16 @@ def test_http_cache_robots_retry(cfg, tmp_path, server, monkeypatch):
 
 def test_demo_end_to_end(tmp_path):
     paths = run_demo(tmp_path / "out")
-    for key in ("leads_csv", "accounts_csv", "xlsx", "html", "summary_json", "registry_only_csv"):
+    for key in ("leads_csv", "accounts_csv", "xlsx", "html", "summary_json", "registry_only_csv",
+                "outreach_csv", "outreach_email_csv", "outreach_instagram_csv"):
         assert paths[key].exists(), key
     html = paths["html"].read_text()
     assert "<title>BC Beauty Leads</title>" in html and "Demo data" in html
     leads = paths["leads_csv"].read_text().splitlines()
-    assert len(leads) == 32  # header + 31 fictional locations (one OSM + one licence record merged)
+    assert len(leads) == 38  # header + 37 fictional locations (one OSM + one licence record merged)
+    from openpyxl import load_workbook
+    wb = load_workbook(paths["xlsx"], read_only=True)
+    assert {"Email outreach", "Instagram outreach", "Leads"} <= set(wb.sheetnames)
+    assert "Copy" in html and "Reach via" in html
     reg = paths["registry_only_csv"].read_text()
     assert "PRAIRIE ROSE NAILS" in reg and "FADEHOUSE" not in reg
