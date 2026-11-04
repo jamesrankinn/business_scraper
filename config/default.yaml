@@ -310,6 +310,47 @@ close:
   #       instagram reported_software reported_spend reported_staff
   field_names: {}
 
+  # Your own Close fields, matched by name. When one exists it is filled in on
+  # NEW leads (never overwritten later), and the tool doesn't create its own
+  # duplicate. Delete a line, or the field in Close, to stop using it.
+  existing_fields:
+    tools: Current Paid Tools                # booking software + website builder + marketing tools
+    spend: Est. Monthly Software Spend       # estimated $/mo for all of those (CAD)
+    industry: Industry
+    source: Lead Source
+    website_status: Website Status           # set to "No Website" when they have none / Instagram only
+    priority: Priority
+    batch: Import Batch
+  industry_value: Beauty & Wellness
+  source_by_origin: {google: Google Maps, default: Other}
+  priority_by_tier: {A: Hot, B: Warm, C: Cold, D: Cold}
+  batch_label: beauty-leads                  # Import Batch = "<date> beauty-leads"
+  # Detected software/tool -> choice in "Current Paid Tools". Anything not
+  # listed (Booksy, GlossGenius, Squire, Jane...) becomes other_tool_choice.
+  # Add those as choices in Close and map them here to track them by name.
+  tool_choices:
+    vagaro: Vagaro
+    fresha: Fresha
+    square_appointments: Square
+    square_online: Square
+    acuity: Acuity
+    calendly: Calendly
+    wix: Wix
+    wix_bookings: Wix
+    squarespace: Squarespace
+    wordpress: WordPress
+    godaddy: GoDaddy
+    shopify: Shopify
+    mailchimp: Mailchimp
+    klaviyo: Klaviyo
+    jotform: Jotform / Typeform
+    typeform: Jotform / Typeform
+    stripe: Stripe
+  other_tool_choice: Other
+  # When you change "Current Paid Tools" after a call, these choices tell
+  # `close pull` which booking software they really use.
+  booking_choices: {Vagaro: vagaro, Fresha: fresha, Square: square_appointments, Acuity: acuity, Calendly: calendly}
+
 # -----------------------------------------------------------------------------
 # What YOU sell. This drives "how much could we sell it for".
 # -----------------------------------------------------------------------------

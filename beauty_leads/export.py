@@ -18,6 +18,7 @@ LEAD_COLUMNS = [
     "name", "category", "city", "address", "channel", "email", "email_ok", "instagram", "instagram_url",
     "phone", "website",
     "software", "software_confidence", "current_spend_cad", "current_spend_source",
+    "other_tools", "tools_spend_cad", "replaceable_spend_cad",
     "our_price_cad", "savings_cad", "staff_est", "staff_source", "annual_revenue_est_cad",
     "software_budget_cad", "rating", "reviews", "price_level", "years_registered", "entity_type",
     "chain_locations", "franchise", "site_builder", "ltv_cad", "pitch", "why", "software_evidence",

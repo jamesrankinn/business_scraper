@@ -365,6 +365,24 @@ site_builders:
   webflow: [webflow.com, website-files.com]
   square_online: [square.site, squarecdn.com]
 
+# Other paid tools a site uses: what an agency could replace or consolidate.
+# Detected by text in the page source; `monthly` is a rough typical small-
+# business plan in `currency` (LOW confidence, check with the owner).
+tools:
+  wix:           {label: Wix, monthly: 27, needles: [wixstatic.com, parastorage.com, wixsite.com]}
+  squarespace:   {label: Squarespace, monthly: 25, needles: [squarespace-cdn.com, sqspcdn.com, static1.squarespace.com]}
+  shopify:       {label: Shopify, monthly: 39, needles: [cdn.shopify.com, myshopify.com]}
+  wordpress:     {label: WordPress, monthly: 25, needles: ["/wp-content/", "/wp-includes/"]}
+  godaddy:       {label: GoDaddy, monthly: 15, needles: [img1.wsimg.com, godaddysites.com]}
+  weebly:        {label: Weebly, monthly: 12, needles: [editmysite.com, weebly.com]}
+  webflow:       {label: Webflow, monthly: 23, needles: [website-files.com, webflow.io]}
+  square_online: {label: Square Online, monthly: 10, needles: [square.site, squarecdn.com]}
+  mailchimp:     {label: Mailchimp, monthly: 20, needles: [list-manage.com, chimpstatic.com, mcusercontent.com]}
+  klaviyo:       {label: Klaviyo, monthly: 30, needles: [static.klaviyo.com, klaviyo.com/]}
+  jotform:       {label: Jotform, monthly: 34, needles: [jotform.com, jotfor.ms]}
+  typeform:      {label: Typeform, monthly: 29, needles: [typeform.com/to/, embed.typeform.com]}
+  stripe:        {label: Stripe, monthly: 0, needles: [js.stripe.com, buy.stripe.com]}
+
 # Hosts that are platforms, not a business's own site (used for chain detection).
 platform_hosts:
   - instagram.com

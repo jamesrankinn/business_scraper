@@ -101,10 +101,13 @@ class FakeClose:
     """Just enough of the Close API to test push/pull."""
 
     def __init__(self, existing_fields=(), existing_leads=()):
-        self.fields = [{"id": f"cf_{i}", "name": n} for i, n in enumerate(existing_fields)]
+        self.fields = []
+        for i, f in enumerate(existing_fields):
+            f = {"name": f} if isinstance(f, str) else dict(f)
+            self.fields.append({"id": f"cf_{i}", "type": "text", "choices": None, "accepts_multiple_values": False, **f})
         self.leads = {f"lead_old{i}": {"id": f"lead_old{i}", "display_name": n, "name": n}
                       for i, n in enumerate(existing_leads)}
-        self.notes, self.calls, self.auth = [], [], None
+        self.created, self.updates, self.notes, self.calls, self.auth = [], [], [], [], None
         self.rate_limit_once = True
 
     def request(self, method, url, json=None, params=None, timeout=None):
@@ -129,9 +132,11 @@ class FakeClose:
             return Resp(200, {"data": [{"id": l["id"], "display_name": l["display_name"]} for l in hits], "cursor": None})
         if path == "lead/" and method == "POST":
             lid = f"lead_new{len(self.leads)}"
+            self.created.append(json)
             self.leads[lid] = {"id": lid, "display_name": json["name"], **json}
             return Resp(200, self.leads[lid])
         if path.startswith("lead/") and method == "PUT":
+            self.updates.append(json)
             self.leads[path.split("/")[1]].update(json)
             return Resp(200, self.leads[path.split("/")[1]])
         if path.startswith("lead/") and method == "GET":
@@ -145,9 +150,23 @@ class FakeClose:
         return Resp(400, {"error": f"unexpected {method} {path}"})
 
 
+# The fields in the real Head Way Design Close account (names and choices).
+HEADWAY_FIELDS = [
+    {"name": "Current Paid Tools", "type": "choices", "accepts_multiple_values": True,
+     "choices": ["Acuity", "Calendly", "Fresha", "GoDaddy", "Jotform / Typeform", "Klaviyo", "Mailchimp", "Other",
+                 "Shopify", "Square", "Squarespace", "Stripe", "Vagaro", "Wix", "WordPress"]},
+    {"name": "Est. Monthly Software Spend", "type": "number"},
+    {"name": "Industry", "type": "choices", "choices": ["Beauty & Wellness", "Other", "Retail"]},
+    {"name": "Lead Source", "type": "choices", "choices": ["Cold Call", "Google Maps", "Other", "Social DM"]},
+    {"name": "Website Status", "type": "choices", "choices": ["Decent", "Good", "No Website", "Outdated"]},
+    {"name": "Priority", "type": "choices", "choices": ["Cold", "Hot", "Warm"]},
+    {"name": "Import Batch", "type": "text"},
+]
+
+
 def _assessments(cfg):
     checks = {url_key("https://fade.example"): {"software": "vagaro", "confidence": "high", "evidence": ["x"],
-                                                "emails": ["hi@fade.example"],
+                                                "emails": ["hi@fade.example"], "tools": ["wix", "mailchimp"],
                                                 "socials": {"instagram": "https://instagram.com/fade.house"}},
               url_key("https://glow.example"): {"software": "booksy", "confidence": "high", "evidence": [],
                                                 "emails": []}}
@@ -156,16 +175,26 @@ def _assessments(cfg):
                  phone="(604) 555-0101", website="https://fade.example", review_count=400, rating=4.8, sources=["google"]),
         Business(key="google:glow", name="Glow Lash", category="lash_brow", city="Kelowna", phone="(250) 555-0102",
                  website="https://glow.example", review_count=150, rating=4.9, sources=["google"]),
+        Business(key="osm:node/7", name="Ink Den Tattoo", category="tattoo", city="Victoria",
+                 website="https://instagram.com/inkden", review_count=90, rating=4.9, sources=["osm"]),
         Business(key="google:closed", name="Gone Salon", category="hair_salon", business_status="CLOSED_PERMANENTLY",
                  sources=["google"]),
     ]
     return Scorer(cfg, checks).assess_all(biz)
 
 
-def test_close_payloads(cfg):
-    a = next(x for x in _assessments(cfg) if x.business.key == "google:fade")
+def _by_key(assessments, key):
+    return next(a for a in assessments if a.business.key == key)
+
+
+def test_close_payloads_fill_existing_fields(cfg):
+    from datetime import date
+    fields = {f["name"]: {"id": f"cf_{i}", **f} for i, f in enumerate(HEADWAY_FIELDS)}
+    existing = {c: fields[n] for c, n in cfg.get("close.existing_fields").items()}
     ids = {k: f"cf_{k}" for k, *_ in crm_close.FIELD_SPECS}
-    p = crm_close.lead_payload(cfg, a, ids)
+    schema = crm_close.Schema(ids=ids, existing=existing)
+    fade = _by_key(_assessments(cfg), "google:fade")
+    p = crm_close.lead_payload(cfg, fade, schema)
     assert p["name"] == "Fade House" and p["url"] == "https://fade.example"
     assert p["contacts"] == [{"emails": [{"email": "hi@fade.example", "type": "office"}],
                               "phones": [{"phone": "(604) 555-0101", "type": "office"}],
@@ -173,45 +202,68 @@ def test_close_payloads(cfg):
     assert p["addresses"][0] == {"label": "business", "address_1": "1 Main St", "city": "Surrey", "state": "BC",
                                  "country": "CA"}
     assert p["custom.cf_bl_id"] == "google:fade" and p["custom.cf_software"] == "Vagaro"
-    assert p["custom.cf_channel"] == "email" and p["custom.cf_instagram"] == "@fade.house"
-    assert "custom.cf_reported_software" not in p
-    note = crm_close.note_text(cfg, a)
-    assert "Instagram DM draft" in note and "Email draft" in note and "Reported Software" in note
+    # Your fields, with your choices:
+    assert p[f"custom.{fields['Current Paid Tools']['id']}"] == ["Vagaro", "Wix", "Mailchimp"]
+    assert p[f"custom.{fields['Est. Monthly Software Spend']['id']}"] == round(fade.replaceable_spend, 2)
+    assert fade.replaceable_spend > fade.current_spend  # Wix + Mailchimp included
+    assert p[f"custom.{fields['Industry']['id']}"] == "Beauty & Wellness"
+    assert p[f"custom.{fields['Lead Source']['id']}"] == "Google Maps"
+    assert p[f"custom.{fields['Priority']['id']}"] == {"A": "Hot", "B": "Warm"}.get(fade.tier, "Cold")
+    assert p[f"custom.{fields['Import Batch']['id']}"].endswith("beauty-leads")
+    assert f"custom.{fields['Website Status']['id']}" not in p  # they have a website
+    # Instagram-only tattoo shop: "No Website", source "Other", Booksy-like unknowns become "Other".
+    ink = _by_key(_assessments(cfg), "osm:node/7")
+    pi = crm_close.lead_payload(cfg, ink, schema)
+    assert pi[f"custom.{fields['Website Status']['id']}"] == "No Website"
+    assert pi[f"custom.{fields['Lead Source']['id']}"] == "Other"
+    glow = _by_key(_assessments(cfg), "google:glow")
+    assert crm_close.tool_choices(cfg, glow, fields["Current Paid Tools"]) == ["Other"]
+    note = crm_close.note_text(cfg, fade)
+    assert "Instagram DM draft" in note and "Email draft" in note and "Wix, Mailchimp" in note
     dry = crm_close.dry_run_payloads(cfg, _assessments(cfg), tiers=["A", "B", "C", "D"])
-    assert {d["lead"]["name"] for d in dry} == {"Fade House", "Glow Lash"}  # closed shop never pushed
+    assert {d["lead"]["name"] for d in dry} == {"Fade House", "Glow Lash", "Ink Den Tattoo"}  # closed shop never pushed
+    assert "<Current Paid Tools>" in "".join(dry[0]["lead"])
 
 
-def test_close_push_and_pull(cfg, tmp_path):
-    fake = FakeClose(existing_fields=["BL Tier"], existing_leads=["Glow Lash"])
+def test_close_push_and_pull_with_your_fields(cfg, tmp_path):
+    fake = FakeClose(existing_fields=HEADWAY_FIELDS + ["BL Tier"], existing_leads=["Glow Lash"])
     client = crm_close.CloseClient("key", session=fake, sleep=lambda s: None)
     assessments = _assessments(cfg)
     with Database(tmp_path / "c.db") as db:
         r = crm_close.push(cfg, db, client, assessments, tiers=["A", "B", "C", "D"])
-        assert (r.created, r.linked, r.updated, r.errors) == (1, 1, 0, 0)
-        assert len(fake.fields) == len(crm_close.FIELD_SPECS)          # created the missing ones
-        assert any(f["name"] == "BL Tier" and f["id"] == "cf_0" for f in fake.fields)  # reused existing
-        assert ("POST", "lead/") in fake.calls and len(fake.notes) == 2
+        assert (r.created, r.linked, r.updated, r.errors) == (2, 1, 0, 0)
+        names = {f["name"] for f in fake.fields}
+        # Your fields are reused; duplicates of them are not created.
+        assert "BL Est. Current Spend" not in names and "Reported Software" not in names
+        assert "Reported Monthly Spend" not in names and {"Beauty Leads ID", "Reported Staff"} <= names
+        assert sum(1 for f in fake.fields if f["name"] == "BL Tier") == 1
+        tools_id = next(f["id"] for f in fake.fields if f["name"] == "Current Paid Tools")
+        spend_id = next(f["id"] for f in fake.fields if f["name"] == "Est. Monthly Software Spend")
+        assert any(c.get(f"custom.{tools_id}") == ["Vagaro", "Wix", "Mailchimp"] for c in fake.created)
+        # Glow Lash was already in Close: matched by name, score fields + a note added, your fields untouched.
         links = db.crm_leads()
-        assert links["google:glow"]["lead_id"] == "lead_old0"            # matched by name, no duplicate
+        assert links["google:glow"]["lead_id"] == "lead_old0"
+        assert all(f"custom.{tools_id}" not in u for u in fake.updates)
+        assert len(fake.notes) == 3
 
-        # Second push: everything is already linked, so only score fields are refreshed.
+        # Re-push: only score fields refresh, no new notes.
         fake.notes.clear()
         r2 = crm_close.push(cfg, db, client, assessments, tiers=["A", "B", "C", "D"])
-        assert (r2.created, r2.linked, r2.updated) == (0, 0, 2) and fake.notes == []
+        assert (r2.created, r2.linked, r2.updated) == (0, 0, 3) and fake.notes == []
 
-        # You log a call in Close; pull brings it back and it overrides the estimates.
-        ids = {f["name"]: f["id"] for f in fake.fields}
+        # After a call you fix their tools and spend in Close; pull treats your edits as the truth.
         fade_lead = links["google:fade"]["lead_id"]
-        fake.leads[fade_lead].update({f"custom.{ids['Reported Software']}": "Square",
-                                      f"custom.{ids['Reported Monthly Spend']}": 60,
-                                      f"custom.{ids['Reported Staff']}": 4})
+        fake.leads[fade_lead].update({f"custom.{tools_id}": ["Square", "Wix"], f"custom.{spend_id}": 60})
         stats = crm_close.pull(cfg, db, client)
-        assert stats == {"pulled": 2, "missing": 0, "with_reports": 1}
-        rescored = Scorer(cfg, crm=db.crm_leads()).assess(assessments[0].business if assessments[0].business.key == "google:fade"
-                                                          else next(a.business for a in assessments if a.business.key == "google:fade"))
+        assert stats == {"pulled": 3, "missing": 0, "with_reports": 1}
+        fade = _by_key(assessments, "google:fade").business
+        rescored = Scorer(cfg, crm=db.crm_leads()).assess(fade)
         assert rescored.software == "square_appointments" and rescored.software_confidence == "reported"
-        assert rescored.current_spend == 60 and rescored.staff_est == 4 and rescored.staff_source == "reported"
+        assert rescored.current_spend == 60
         assert rescored.crm_status == "Qualified" and rescored.crm_url.endswith(f"{fade_lead}/")
+        # Leads you didn't touch keep the tool's estimates.
+        ink = Scorer(cfg, crm=db.crm_leads()).assess(_by_key(assessments, "osm:node/7").business)
+        assert ink.software == "social_only"
 
 
 def test_close_auth_error_is_clear(cfg):
@@ -228,5 +280,7 @@ def test_close_auth_error_is_clear(cfg):
 
 def test_close_csv(cfg):
     rows = crm_close.close_csv_rows(cfg, _assessments(cfg))
-    assert [r["Company"] for r in rows] == ["Fade House", "Glow Lash"]
-    assert rows[0]["Beauty Leads ID"] == "google:fade" and rows[0]["Country"] == "CA"
+    assert [r["Company"] for r in rows][:1] == ["Fade House"]
+    fade = rows[0]
+    assert fade["Beauty Leads ID"] == "google:fade" and fade["Country"] == "CA"
+    assert fade["Current Paid Tools"] == "Vagaro, Wix, Mailchimp" and fade["Industry"] == "Beauty & Wellness"

@@ -254,10 +254,26 @@ Push your best leads into Close, work them there, and let what you learn flow ba
    ```
 
 Each business becomes a Close lead with its phone, email, Instagram link and address, plus a note
-holding the pitch, the "why", and the drafted DM and email. The scores go into custom fields: **BL
-Tier, BL Expected MRR, BL Our Price, BL Est. Current Spend, BL Close %, BL Software, BL Category,
-BL Channel, Instagram** and **Beauty Leads ID**. Build Smart Views on them, for example "BL Tier is
-A and BL Channel is instagram" for today's DM list.
+holding the pitch, the "why", and the drafted DM and email.
+
+**Your own fields are used where they exist** (`close.existing_fields`). New leads get:
+
+| Your field | Filled with |
+|---|---|
+| Current Paid Tools | Booking software plus the website builder and marketing tools found on the site (Vagaro, Wix, Mailchimp…). Platforms without a choice of their own become "Other". |
+| Est. Monthly Software Spend | Estimated monthly cost of all of those, in CAD |
+| Industry | Beauty & Wellness |
+| Lead Source | Google Maps, or Other |
+| Website Status | No Website, when they only have Instagram or nothing |
+| Priority | Tier A → Hot, B → Warm, C/D → Cold |
+| Import Batch | `<date> beauty-leads` |
+
+These are written once, when the lead is created. After that they're yours to edit.
+
+The tool also creates its own fields for what Close doesn't have: **Beauty Leads ID, BL Tier, BL
+Expected MRR, BL Our Price, BL Close %, BL Software, BL Category, BL Channel, Instagram** and
+**Reported Staff**. Build Smart Views on them, for example "BL Tier is A and BL Channel is instagram"
+for today's DM list.
 
 * **No duplicates.** Before creating a lead, the push looks for one with the same Beauty Leads ID,
   then the same name. A shop you already have in Close gets the score fields and a note added
@@ -265,8 +281,9 @@ A and BL Channel is instagram" for today's DM list.
 * **Your edits are safe.** Re-pushing only refreshes the BL score fields. It never changes
   contacts, status, notes or anything you typed.
 
-**During calls**, fill in **Reported Software**, **Reported Monthly Spend** and **Reported Staff**
-on the lead. Then pull them back:
+**During calls**, correct **Current Paid Tools** and **Est. Monthly Software Spend** with what the
+owner tells you, and fill in **Reported Staff**. The pull treats any change you make to those fields
+as the real answer. Then pull them back:
 
 ```bash
 beauty-leads close pull
@@ -279,8 +296,11 @@ beauty-leads export
 The reported values replace the tool's estimates. Each lead's Close status also shows up in the
 leads and outreach files.
 
-**No API key?** `beauty-leads export` also writes `reports/close_import.csv` for Close's CSV
-importer (Leads → Import).
+**No API key?** There are two other routes:
+
+* `beauty-leads export` writes `reports/close_import.csv` for Close's CSV importer (Leads → Import),
+  with columns named after your fields.
+* With the Close connector enabled in Claude, ask Claude to push the leads from a run for you.
 
 ## Being a good citizen
 

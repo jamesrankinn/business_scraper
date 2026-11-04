@@ -109,7 +109,7 @@ def build_demo(cfg: Config, db: Database) -> None:
                 checks[key] = {"status": "fetch_failed", "software": "unknown", "error": "timeout"}
             elif software == "none_detected":
                 checks[key] = {"status": "ok", "software": "none_detected", "confidence": None, "evidence": [],
-                               "site_builder": "wix",
+                               "site_builder": "wix", "tools": ["wix"],
                                "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"} if i % 2 else {},
                                "emails": [f"hello@{slug}.example"],
                                # One site asks not to be solicited, so CASL routes it away from email.
@@ -118,6 +118,7 @@ def build_demo(cfg: Config, db: Database) -> None:
                 url = FINGERPRINT_URL[software].format(slug=slug)
                 checks[key] = {"status": "ok", "software": software, "confidence": "high",
                                "evidence": [f'"Book now" button: {url}'], "site_builder": "squarespace",
+                               "tools": ["squarespace", "mailchimp"] if i % 2 else ["squarespace"],
                                "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"},
                                "emails": [f"bookings@{slug}.example"] if i % 3 else []}
         if i % 4 != 0 and name.upper() not in {r.name for r in registry}:

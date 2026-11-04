@@ -61,6 +61,8 @@ class Assessment:
     instagram: str | None = None          # handle, no @
     no_solicitation: str | None = None    # the site's "no solicitation" wording, if any
     channel: str = "none"                 # email | instagram | phone | none
+    tools: list[str] = field(default_factory=list)   # other paid tools (Wix, Mailchimp...)
+    tools_spend: float = 0.0              # their estimated monthly cost, CAD
     crm_status: str | None = None         # lead status in Close, after `close pull`
     crm_url: str | None = None
 
@@ -68,6 +70,13 @@ class Assessment:
     def email_ok(self) -> bool:
         """Published email we may contact under CASL implied consent."""
         return bool(self.emails) and not self.no_solicitation
+
+    @property
+    def replaceable_spend(self) -> float | None:
+        """Booking software + other tools: everything an agency could replace."""
+        if self.current_spend is None and not self.tools_spend:
+            return None
+        return (self.current_spend or 0.0) + self.tools_spend
 
     @property
     def instagram_url(self) -> str | None:
@@ -97,6 +106,9 @@ class Assessment:
             "software_confidence": self.software_confidence,
             "software_evidence": " | ".join(self.software_evidence[:2]),
             "current_spend_cad": None if self.current_spend is None else round(self.current_spend, 2),
+            "other_tools": ", ".join(self.tools),
+            "tools_spend_cad": round(self.tools_spend, 2),
+            "replaceable_spend_cad": None if self.replaceable_spend is None else round(self.replaceable_spend, 2),
             "current_spend_source": self.current_spend_source,
             "our_price_cad": round(self.suggested_price, 2),
             "savings_cad": None if self.savings is None else round(self.savings, 2),
@@ -378,6 +390,12 @@ class Scorer:
                 break
         if instagram:
             socials["instagram"] = f"https://www.instagram.com/{instagram}/"
+        tool_specs = cfg.catalog.get("tools") or {}
+        tools = [t for t in (check.get("tools") or []) if t in tool_specs]
+        tools_spend = sum(float(tool_specs[t].get("monthly", 0)) for t in tools) * self.fx
+        if tools:
+            labels = ", ".join(tool_specs[t].get("label", t) for t in tools)
+            reasons.append(f"also uses {labels}" + (f" (~${tools_spend:,.0f}/mo)" if tools_spend else ""))
         no_solicit = check.get("no_solicitation")
         email_ok = bool(emails) and not no_solicit
         if no_solicit:
@@ -416,6 +434,7 @@ class Scorer:
             ltv=price * self.months, tier=tier, excluded_reason=excluded, reasons=reasons, pitch=pitch,
             instagram=instagram, no_solicitation=no_solicit, channel=channel,
             crm_status=crm.get("status_label"), crm_url=crm.get("html_url"),
+            tools=[tool_specs[t].get("label", t) for t in tools], tools_spend=tools_spend,
         )
 
     def assess_all(self, businesses) -> list[Assessment]:

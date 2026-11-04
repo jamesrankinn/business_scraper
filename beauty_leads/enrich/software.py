@@ -49,6 +49,13 @@ def _fp_match(url: str, fingerprint: str) -> bool:
     return path.lstrip("/").startswith(fp_path)
 
 
+def find_tools(cfg: Config, text: str) -> list[str]:
+    """Other paid tools (website builder, email marketing, forms...) mentioned in page source or URLs."""
+    text = text.lower()
+    return [key for key, spec in (cfg.catalog.get("tools") or {}).items()
+            if any(n.lower() in text for n in spec.get("needles", []) or [])]
+
+
 def software_for_url(cfg: Config, url: str | None) -> tuple[str | None, bool]:
     """(software_key, strong?) for a single URL, or (None, False)."""
     if not url:
@@ -130,6 +137,7 @@ def detect(cfg: Config, html: str, page_url: str) -> dict:
         if any(n.lower() in lower for n in needles):
             builder = name
             break
+    tools = find_tools(cfg, lower)
     if builder == "wix" and "wix_bookings" in cfg.software:
         for url, _text in anchors:
             if host_of(url) == host_of(page_url) and any(p in urlsplit(url).path.lower() for p in WIX_BOOKING_PATHS):
@@ -172,6 +180,7 @@ def detect(cfg: Config, html: str, page_url: str) -> dict:
         "evidence": evidence.get(best, []) if best else [],
         "all_software": {k: round(v, 2) for k, v in sorted(scores.items(), key=lambda kv: -kv[1])},
         "site_builder": builder,
+        "tools": tools,
         "socials": socials,
         "emails": clean_emails(emails),
         "booking_links": booking_links[:5],

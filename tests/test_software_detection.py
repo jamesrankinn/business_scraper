@@ -75,3 +75,15 @@ def test_check_website_redirect_to_platform(cfg, fake_http):
 def test_check_website_unreachable(cfg, fake_http):
     r = check_website(cfg, fake_http({}), "https://down.ca")
     assert r["software"] == "unknown" and r["status"] == "fetch_failed"
+
+
+def test_detect_other_tools(cfg):
+    html = """<html><head><link rel="stylesheet" href="https://static.wixstatic.com/site.css">
+      <script src="https://chimpstatic.com/mcjs-connected/js/users/abc.js"></script></head>
+      <body><a href="https://www.vagaro.com/shop">Book now</a>
+      <iframe src="https://form.jotform.com/12345"></iframe>
+      <script src="https://js.stripe.com/v3/"></script></body></html>"""
+    d = detect(cfg, html, "https://shop.ca/")
+    assert d["software"] == "vagaro"
+    assert d["tools"] == ["wix", "mailchimp", "jotform", "stripe"]
+    assert detect(cfg, "<p>Just text</p>", "https://shop.ca/")["tools"] == []

@@ -25,7 +25,7 @@ from ..config import Config
 from ..db import Database
 from ..http import HttpClient
 from ..normalize import ensure_scheme, host_of, url_key
-from .software import detect, software_for_url
+from .software import detect, find_tools, software_for_url
 
 log = logging.getLogger(__name__)
 
@@ -104,7 +104,9 @@ def analyse(cfg: Config, rendered: dict) -> dict:
 
     best = max(scores, key=scores.get) if scores else None
     best_score = scores.get(best, 0.0) if best else 0.0
+    tools = find_tools(cfg, " ".join(u for u, _ in rendered.get("requests", [])) + " " + (rendered.get("html") or ""))
     return {
+        "tools": tools,
         "software": best,
         "confidence": "high" if best_score >= 3 else "medium" if best_score >= 1.5 else "low" if best else None,
         "evidence": (evidence.get(best) or [])[:4] if best else [],
@@ -175,6 +177,7 @@ def recheck_with_browser(cfg: Config, db: Database, http: HttpClient, limit: int
                     updated["socials"] = socials
                     updated["no_solicitation"] = old.get("no_solicitation") or dom.get("no_solicitation")
                     updated["site_builder"] = old.get("site_builder") or dom.get("site_builder")
+                updated["tools"] = list(dict.fromkeys((old.get("tools") or []) + result.get("tools", [])))
                 db.save_website_check(key, updated)
                 stats[updated["software"]] = stats.get(updated["software"], 0) + 1
                 if i % 10 == 0:

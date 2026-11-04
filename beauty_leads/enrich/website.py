@@ -60,6 +60,7 @@ def check_website(cfg: Config, http: HttpClient, website: str | None) -> dict:
         for kk, vv in inner["socials"].items():
             found["socials"].setdefault(kk, vv)
         found["no_solicitation"] = found.get("no_solicitation") or inner.get("no_solicitation")
+        found["tools"] = list(dict.fromkeys(found.get("tools", []) + inner.get("tools", [])))
 
     # 3. No software on the homepage: follow a couple of "Book now" links.
     if not found["software"]:
