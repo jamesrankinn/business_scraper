@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import date
 
 from .config import Config
+from .enrich.audit import audit_without_site
 from .enrich.software import social_kind, software_for_url
 from .models import Business
 from .normalize import instagram_handle, name_key, normalize_name, url_key
@@ -63,6 +64,18 @@ class Assessment:
     channel: str = "none"                 # email | instagram | phone | none
     tools: list[str] = field(default_factory=list)   # other paid tools (Wix, Mailchimp...)
     tools_spend: float = 0.0              # their estimated monthly cost, CAD
+    # Website & agency services
+    web_status: str | None = None         # No Website | Outdated | Decent | Good
+    web_score: int | None = None          # 0-100 audit score
+    web_issues: list[str] = field(default_factory=list)
+    opportunities: list[str] = field(default_factory=list)   # service labels to pitch
+    project_value: float = 0.0            # one-time fees for those services
+    services_monthly: float = 0.0         # recurring fees for those services
+    web_budget: float = 0.0               # est. website budget from revenue
+    web_close_probability: float = 0.0
+    expected_project_value: float = 0.0   # web close % x (project + 12 x services monthly)
+    first_year_value: float = 0.0         # 12 x expected_mrr + expected_project_value
+    rank_value: float = 0.0               # what leads are sorted and tiered by
     crm_status: str | None = None         # lead status in Close, after `close pull`
     crm_url: str | None = None
 
@@ -70,6 +83,10 @@ class Assessment:
     def email_ok(self) -> bool:
         """Published email we may contact under CASL implied consent."""
         return bool(self.emails) and not self.no_solicitation
+
+    @property
+    def issues_platform_page(self) -> bool:
+        return any("booking page instead of its own website" in i for i in self.web_issues)
 
     @property
     def replaceable_spend(self) -> float | None:
@@ -86,6 +103,7 @@ class Assessment:
         b = self.business
         return {
             "tier": self.tier,
+            "first_year_value_cad": round(self.first_year_value, 2),
             "expected_mrr_cad": round(self.expected_mrr, 2),
             "potential_mrr_cad": round(self.potential_mrr, 2),
             "close_probability": round(self.close_probability, 3),
@@ -127,6 +145,15 @@ class Assessment:
             "ltv_cad": round(self.ltv),
             "excluded_reason": self.excluded_reason,
             "pitch": self.pitch,
+            "website_status": self.web_status,
+            "website_score": self.web_score,
+            "website_issues": " | ".join(self.web_issues),
+            "opportunities": ", ".join(self.opportunities),
+            "project_value_cad": round(self.project_value),
+            "services_monthly_cad": round(self.services_monthly),
+            "web_budget_cad": round(self.web_budget),
+            "web_close_probability": round(self.web_close_probability, 3),
+            "expected_project_value_cad": round(self.expected_project_value, 2),
             "why": " • ".join(self.reasons),
             "google_maps_url": b.google_maps_url,
             "sources": ", ".join(b.sources),
@@ -202,6 +229,11 @@ class Scorer:
         self.sweet_lo, self.sweet_hi = cfg.get("our_product.sweet_spot_staff", [2, 15])
         self.months = float(cfg.get("our_product.months_retained", 30))
         self.fx = cfg.usd_to_cad
+        self.web_openness = {"No Website": 0.8, "Outdated": 0.7, "Decent": 0.35, "Good": 0.15, "unknown": 0.4,
+                             **(s.get("web_openness") or {})}
+        self.web_budget_pct = float(cfg.get("our_product.web_budget_pct_of_revenue", 0.015))
+        self.rank_by = s.get("rank_by", "first_year")
+        self.first_year_tiers = s.get("first_year_tiers", {"A": 1200, "B": 750, "C": 350})
         self.reach = {"email": 0.4, "instagram": 0.35, "phone": 0.15, "website": 0.1,
                       **(s.get("reachability") or {})}
 
@@ -421,7 +453,42 @@ class Scorer:
             prob = 0.0
 
         emv = price * prob
-        tier = "X" if excluded else next((t for t, thr in sorted(self.tiers.items(), key=lambda kv: -kv[1]) if emv >= thr), "D")
+
+        # --- Website & agency services ---------------------------------------
+        audit = None
+        if b.website and (check.get("status") == "platform_url" or software_for_url(cfg, b.website)[1]):
+            audit = {"score": 0, "status": "No Website", "has_shop": False,
+                     "issues": [f"Uses a {label} booking page instead of its own website"]}
+        audit = audit or check.get("audit") or audit_without_site(check, software)
+        web_status = (audit or {}).get("status")
+        web_score = (audit or {}).get("score")
+        web_issues = list((audit or {}).get("issues") or [])
+        if web_status:
+            detail = "; ".join(web_issues[:2]) if web_status != "Good" else ""
+            shown = f" ({web_score}/100)" if web_score is not None and web_status != "No Website" else ""
+            reasons.append(f"website {web_status}{shown}" + (f": {detail}" if detail else ""))
+        opp_keys = self.opportunities(b, software, current, f["switchability"], tools, audit)
+        services = cfg.get("our_product.services", {}) or {}
+        project_value = sum(float(services[k].get("project", 0)) for k in opp_keys)
+        services_monthly = sum(float(services[k].get("monthly", 0)) for k in opp_keys)
+        web_budget = revenue * self.web_budget_pct
+        openness = float(self.web_openness.get(web_status or "unknown", self.web_openness["unknown"]))
+        p_web = self.p_min + (self.p_max - self.p_min) * openness * f["decision_maker"] * fit ** self.fit_exp
+        if project_value > 0:
+            p_web *= _clamp(web_budget / project_value, 0.4, 1.0)
+            if web_budget < project_value:
+                reasons.append(f"est. website budget ~${web_budget:,.0f} vs ${project_value:,.0f} of projects")
+        if excluded:
+            p_web = 0.0
+        expected_project = p_web * (project_value + 12 * services_monthly)
+        first_year = 12 * emv + expected_project
+
+        if self.rank_by == "monthly":
+            rank_value, thresholds = emv, self.tiers
+        else:
+            rank_value, thresholds = first_year, self.first_year_tiers
+        tier = "X" if excluded else next(
+            (t for t, thr in sorted(thresholds.items(), key=lambda kv: -kv[1]) if rank_value >= thr), "D")
         pitch = sw_spec.get("pitch") or no_sw_spec.get("pitch") or ""
 
         return Assessment(
@@ -435,11 +502,51 @@ class Scorer:
             instagram=instagram, no_solicitation=no_solicit, channel=channel,
             crm_status=crm.get("status_label"), crm_url=crm.get("html_url"),
             tools=[tool_specs[t].get("label", t) for t in tools], tools_spend=tools_spend,
+            web_status=web_status, web_score=web_score, web_issues=web_issues,
+            opportunities=[services[k].get("label", k) for k in opp_keys], project_value=project_value,
+            services_monthly=services_monthly, web_budget=web_budget, web_close_probability=p_web,
+            expected_project_value=expected_project, first_year_value=first_year, rank_value=rank_value,
         )
+
+    def opportunities(self, b: Business, software: str, current: float | None, switch: float,
+                      tools: list[str], audit: dict | None) -> list[str]:
+        """Which of your services this business is a candidate for (keys of our_product.services)."""
+        p = self.cfg.get("our_product", {}) or {}
+        services = p.get("services", {}) or {}
+        status = (audit or {}).get("status")
+        issues = " ".join((audit or {}).get("issues") or []).lower()
+        tools_set = set(tools)
+        out: list[str] = []
+
+        def add(key: str) -> None:
+            if key in services and key not in out:
+                out.append(key)
+
+        if status == "No Website":
+            add("new_website")
+        elif status == "Outdated":
+            add("website_redesign")
+        if software in ("none_detected", "social_only", "no_website"):
+            add("online_booking")
+        if current and (switch >= 0.5 or len(tools_set) >= 2):
+            add("tool_replacement")
+        if b.category in (p.get("intake_categories") or []) and not tools_set & {"jotform", "typeform"}:
+            add("forms_intake")
+        if b.category in (p.get("membership_categories") or []):
+            add("memberships")
+        if (audit or {}).get("has_shop") and not tools_set & {"shopify", "square_online"}:
+            add("payments")
+        if not tools_set & {"mailchimp", "klaviyo"} and (b.review_count or 0) >= 150:
+            add("email_marketing")
+        if status in ("Outdated", "Decent") and any(w in issues for w in ("page title", "meta description", "schema")):
+            add("seo")
+        if status in ("No Website", "Outdated"):
+            add("hosting")
+        return out
 
     def assess_all(self, businesses) -> list[Assessment]:
         out = [self.assess(b) for b in businesses]
-        out.sort(key=lambda a: (-a.expected_mrr, a.business.name))
+        out.sort(key=lambda a: (-a.rank_value, a.business.name))
         return out
 
 
@@ -459,8 +566,12 @@ def accounts(assessments: list[Assessment]) -> list[dict]:
             "cities": ", ".join(sorted({a.business.city for a in items if a.business.city})),
             "category": top.business.category,
             "software": ", ".join(sorted({a.software_label for a in items})),
+            "first_year_value_cad": round(sum(a.first_year_value for a in items), 2),
             "expected_mrr_cad": round(sum(a.expected_mrr for a in items), 2),
             "potential_mrr_cad": round(sum(a.potential_mrr for a in items), 2),
+            "project_value_cad": round(sum(a.project_value for a in items)),
+            "website_status": ", ".join(sorted({a.web_status for a in items if a.web_status})),
+            "opportunities": ", ".join(dict.fromkeys(o for a in items for o in a.opportunities)),
             "current_spend_cad": round(sum(a.current_spend or 0 for a in items), 2),
             "best_tier": tiers[0] if tiers else "D",
             "phone": next((a.business.phone for a in items if a.business.phone), None),
@@ -470,8 +581,11 @@ def accounts(assessments: list[Assessment]) -> list[dict]:
             "franchise": top.business.franchise,
             "pitch": top.pitch,
             "account_key": key,
+            "_rank": sum(a.rank_value for a in items),
         })
-    rows.sort(key=lambda r: -r["expected_mrr_cad"])
+    rows.sort(key=lambda r: -r["_rank"])
+    for r in rows:
+        r.pop("_rank")
     return rows
 
 
@@ -481,6 +595,8 @@ def market_summary(assessments: list[Assessment]) -> dict:
     by_cat: dict[str, dict] = defaultdict(lambda: {"locations": 0, "expected_mrr_cad": 0.0})
     by_city: dict[str, dict] = defaultdict(lambda: {"locations": 0, "expected_mrr_cad": 0.0})
     by_tier: dict[str, int] = defaultdict(int)
+    by_web: dict[str, int] = defaultdict(int)
+    by_opp: dict[str, dict] = defaultdict(lambda: {"locations": 0, "project_value_cad": 0.0})
     for a in assessments:
         by_tier[a.tier] += 1
     for a in live:
@@ -493,6 +609,10 @@ def market_summary(assessments: list[Assessment]) -> dict:
         by_cat[a.business.category]["expected_mrr_cad"] += a.expected_mrr
         by_city[a.business.city or "Unknown"]["locations"] += 1
         by_city[a.business.city or "Unknown"]["expected_mrr_cad"] += a.expected_mrr
+        by_web[a.web_status or "Not checked"] += 1
+        services = a.opportunities
+        for o in services:
+            by_opp[o]["locations"] += 1
 
     def rnd(d):
         return {k: {kk: round(vv, 2) if isinstance(vv, float) else vv for kk, vv in v.items()} for k, v in d.items()}
@@ -503,6 +623,11 @@ def market_summary(assessments: list[Assessment]) -> dict:
         "accounts": len({a.business.chain_key or a.business.key for a in live}),
         "potential_mrr_cad": round(sum(a.potential_mrr for a in live), 2),
         "expected_mrr_cad": round(sum(a.expected_mrr for a in live), 2),
+        "first_year_value_cad": round(sum(a.first_year_value for a in live), 2),
+        "expected_project_value_cad": round(sum(a.expected_project_value for a in live), 2),
+        "needs_website": sum(1 for a in live if a.web_status in ("No Website", "Outdated")),
+        "by_website_status": dict(sorted(by_web.items(), key=lambda kv: -kv[1])),
+        "by_opportunity": {k: v["locations"] for k, v in sorted(by_opp.items(), key=lambda kv: -kv[1]["locations"])},
         "software_identified": sum(1 for a in live if a.software not in NO_SOFTWARE_STATES),
         "software_checked": sum(1 for a in live if a.software != "unknown"),
         "by_software": dict(sorted(rnd(by_sw).items(), key=lambda kv: -kv[1]["locations"])),

@@ -154,12 +154,15 @@ def cmd_score(args) -> int:
         return 1
     s = market_summary(assessments)
     print(f"\n{s['live_locations']} live locations · {s['accounts']} accounts · "
-          f"expected ${s['expected_mrr_cad']:,.0f}/mo · potential ${s['potential_mrr_cad']:,.0f}/mo (CAD)\n")
-    print(f"{'tier':4} {'expected':>9} {'price':>7} {'close':>6}  {'business':34} {'city':16} software")
+          f"expected first year ${s['first_year_value_cad']:,.0f} "
+          f"(${s['expected_mrr_cad']:,.0f}/mo booking + ${s['expected_project_value_cad']:,.0f} website work) · "
+          f"{s['needs_website']} need a better website (CAD)\n")
+    print(f"{'tier':4} {'year 1':>8} {'/mo':>6}  {'website':12} {'business':32} {'city':15} software")
     for a in assessments[: args.top]:
         b = a.business
-        print(f"{a.tier:4} {a.expected_mrr:>9.2f} {a.suggested_price:>7.0f} {a.close_probability:>6.1%}  "
-              f"{b.name[:34]:34} {(b.city or '')[:16]:16} {a.software_label}")
+        web = (a.web_status or "-") + (f" {a.web_score}" if a.web_score is not None and a.web_status not in (None, "No Website") else "")
+        print(f"{a.tier:4} {a.first_year_value:>8,.0f} {a.expected_mrr:>6.0f}  {web[:12]:12} "
+              f"{b.name[:32]:32} {(b.city or '')[:15]:15} {a.software_label}")
     print("\nBy software:")
     for name, row in list(s["by_software"].items())[:12]:
         print(f"  {name:38} {row['locations']:>5} locations  est. spend ${row['current_spend_cad']:>10,.0f}/mo  "

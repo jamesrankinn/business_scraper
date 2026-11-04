@@ -9,6 +9,7 @@ from ..config import Config
 from ..db import Database
 from ..http import HttpClient
 from ..normalize import ensure_scheme, host_of, url_key
+from .audit import audit_page
 from .software import detect, social_kind, software_for_url
 
 log = logging.getLogger(__name__)
@@ -110,8 +111,10 @@ def check_website(cfg: Config, http: HttpClient, website: str | None) -> dict:
         software = "social_only" if kind == "linktree" else "none_detected"
     for transient in ("same_host_booking_links", "contact_links"):
         found.pop(transient, None)
+    audit = audit_page(res.text, res.url, software=software, tools=found.get("tools"),
+                       thresholds=cfg.get("scoring.website_status"))
     return _result("ok", software, **{k: v for k, v in found.items() if k not in ("software",)},
-                   pages_checked=pages, final_url=res.url, host=host_of(res.url))
+                   pages_checked=pages, final_url=res.url, host=host_of(res.url), audit=audit)
 
 
 def enrich_websites(cfg: Config, db: Database, http: HttpClient, limit: int | None = None,

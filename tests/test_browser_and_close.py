@@ -161,6 +161,8 @@ HEADWAY_FIELDS = [
     {"name": "Website Status", "type": "choices", "choices": ["Decent", "Good", "No Website", "Outdated"]},
     {"name": "Priority", "type": "choices", "choices": ["Cold", "Hot", "Warm"]},
     {"name": "Import Batch", "type": "text"},
+    {"name": "Budget Range", "type": "choices",
+     "choices": ["$1,000–$2,500", "$10,000+", "$2,500–$5,000", "$5,000–$10,000", "Under $1,000"]},
 ]
 
 
@@ -210,7 +212,8 @@ def test_close_payloads_fill_existing_fields(cfg):
     assert p[f"custom.{fields['Lead Source']['id']}"] == "Google Maps"
     assert p[f"custom.{fields['Priority']['id']}"] == {"A": "Hot", "B": "Warm"}.get(fade.tier, "Cold")
     assert p[f"custom.{fields['Import Batch']['id']}"].endswith("beauty-leads")
-    assert f"custom.{fields['Website Status']['id']}" not in p  # they have a website
+    assert f"custom.{fields['Website Status']['id']}" not in p  # site not audited in this test
+    assert p[f"custom.{fields['Budget Range']['id']}"] in HEADWAY_FIELDS[-1]["choices"]
     # Instagram-only tattoo shop: "No Website", source "Other", Booksy-like unknowns become "Other".
     ink = _by_key(_assessments(cfg), "osm:node/7")
     pi = crm_close.lead_payload(cfg, ink, schema)
@@ -222,7 +225,7 @@ def test_close_payloads_fill_existing_fields(cfg):
     assert "Instagram DM draft" in note and "Email draft" in note and "Wix, Mailchimp" in note
     dry = crm_close.dry_run_payloads(cfg, _assessments(cfg), tiers=["A", "B", "C", "D"])
     assert {d["lead"]["name"] for d in dry} == {"Fade House", "Glow Lash", "Ink Den Tattoo"}  # closed shop never pushed
-    assert "<Current Paid Tools>" in "".join(dry[0]["lead"])
+    assert any("custom.<Current Paid Tools>" in d["lead"] for d in dry)
 
 
 def test_close_push_and_pull_with_your_fields(cfg, tmp_path):
@@ -280,7 +283,8 @@ def test_close_auth_error_is_clear(cfg):
 
 def test_close_csv(cfg):
     rows = crm_close.close_csv_rows(cfg, _assessments(cfg))
-    assert [r["Company"] for r in rows][:1] == ["Fade House"]
-    fade = rows[0]
+    fade = next(r for r in rows if r["Company"] == "Fade House")
+    ink = next(r for r in rows if r["Company"] == "Ink Den Tattoo")
+    assert ink["Website Status"] == "No Website" and "New Website" in ink["BL Opportunities"]
     assert fade["Beauty Leads ID"] == "google:fade" and fade["Country"] == "CA"
     assert fade["Current Paid Tools"] == "Vagaro, Wix, Mailchimp" and fade["Industry"] == "Beauty & Wellness"

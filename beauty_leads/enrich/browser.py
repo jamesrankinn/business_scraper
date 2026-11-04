@@ -25,6 +25,7 @@ from ..config import Config
 from ..db import Database
 from ..http import HttpClient
 from ..normalize import ensure_scheme, host_of, url_key
+from .audit import audit_page
 from .software import detect, find_tools, software_for_url
 
 log = logging.getLogger(__name__)
@@ -178,6 +179,10 @@ def recheck_with_browser(cfg: Config, db: Database, http: HttpClient, limit: int
                     updated["no_solicitation"] = old.get("no_solicitation") or dom.get("no_solicitation")
                     updated["site_builder"] = old.get("site_builder") or dom.get("site_builder")
                 updated["tools"] = list(dict.fromkeys((old.get("tools") or []) + result.get("tools", [])))
+                if rendered["html"]:
+                    # The rendered page is what visitors see, so audit that instead of the raw HTML.
+                    updated["audit"] = audit_page(rendered["html"], rendered["final_url"], software=updated["software"],
+                                                  tools=updated["tools"], thresholds=cfg.get("scoring.website_status"))
                 db.save_website_check(key, updated)
                 stats[updated["software"]] = stats.get(updated["software"], 0) + 1
                 if i % 10 == 0:

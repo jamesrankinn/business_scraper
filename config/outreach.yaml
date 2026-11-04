@@ -11,6 +11,9 @@
 #   {software} {spend} {price} {savings}              what they use, what it
 #                                                     costs (estimate), our price
 #   {sender_name} {sender_business} {sender_contact} {sender_address}
+#   {site_line}   one sentence about their website when it's missing or
+#                 outdated, empty otherwise. Added automatically before the
+#                 closing question if a template doesn't place it itself.
 #
 # Spend figures are ESTIMATES, so the wording says "usually" / "around".
 # Never state an estimate as their actual bill.

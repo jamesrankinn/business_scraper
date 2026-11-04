@@ -49,6 +49,10 @@ FIELD_SPECS = [
     ("category", "BL Category", "text", None, True, None),
     ("channel", "BL Channel", "choices", ["email", "instagram", "phone", "none"], True, None),
     ("instagram", "Instagram", "text", None, True, None),
+    ("web_score", "BL Website Score", "number", None, True, None),
+    ("opportunities", "BL Opportunities", "text", None, True, None),
+    ("project_value", "BL Project Value", "number", None, True, None),
+    ("first_year", "BL Year-1 Value", "number", None, True, None),
     # Filled in by you during calls; read back by `close pull`.
     ("reported_software", "Reported Software", "text", None, False, "tools"),
     ("reported_spend", "Reported Monthly Spend", "number", None, False, "spend"),
@@ -199,6 +203,10 @@ def score_fields(cfg: Config, a: Assessment, ids: dict) -> dict:
         "category": cfg.categories.get(b.category, {}).get("label", b.category),
         "channel": a.channel,
         "instagram": f"@{a.instagram}" if a.instagram else None,
+        "web_score": a.web_score,
+        "opportunities": ", ".join(a.opportunities) or None,
+        "project_value": round(a.project_value) if a.project_value else None,
+        "first_year": round(a.first_year_value, 2),
     }
     return {f"custom.{ids[k]}": v for k, v in values.items() if k in ids and v is not None}
 
@@ -249,8 +257,12 @@ def existing_values(cfg: Config, a: Assessment, existing: dict, today: date | No
     put("industry", c.get("industry_value"))
     origins = c.get("source_by_origin", {}) or {}
     put("source", origins.get("google") if "google" in b.sources else origins.get("default"))
-    if a.software in ("no_website", "social_only"):
-        put("website_status", "No Website")
+    put("website_status", a.web_status)
+    if a.web_budget:
+        for limit, label in c.get("budget_ranges") or []:
+            if a.web_budget < float(limit):
+                put("budget", label)
+                break
     put("priority", (c.get("priority_by_tier", {}) or {}).get(a.tier))
     put("batch", f"{(today or date.today()).isoformat()} {c.get('batch_label', 'beauty-leads')}")
     return out
@@ -295,6 +307,11 @@ def note_text(cfg: Config, a: Assessment) -> str:
         f"Software: {a.software_label}" + (f" ({a.software_confidence})" if a.software_confidence else "")
         + f". Current spend: {spend}",
         f"Best channel: {a.channel}",
+        f"Website: {a.web_status or 'not checked'}" + (f" ({a.web_score}/100)" if a.web_score is not None else "")
+        + (f". Issues: {'; '.join(a.web_issues)}" if a.web_issues else ""),
+        f"Pitch these services: {', '.join(a.opportunities) or 'none flagged'}"
+        + (f" (~${a.project_value:,.0f} one-time" + (f" + ${a.services_monthly:,.0f}/mo" if a.services_monthly else "") + ")"
+           if a.project_value or a.services_monthly else ""),
         f"Why: {' • '.join(a.reasons)}",
     ]
     if a.no_solicitation:
@@ -426,7 +443,8 @@ CLOSE_CSV_COLUMNS = [
     "BL Close %", "BL Software", "BL Category", "BL Channel",
     # Your own Close fields (names from close.existing_fields):
     "Current Paid Tools", "Est. Monthly Software Spend", "Industry", "Lead Source", "Website Status",
-    "Priority", "Import Batch",
+    "Priority", "Import Batch", "Budget Range",
+    "BL Website Score", "BL Opportunities", "BL Project Value", "BL Year-1 Value",
 ]
 
 
@@ -437,7 +455,7 @@ def _existing_csv(cfg: Config, a: Assessment) -> dict:
     vals = {k.split(".", 1)[1]: v for k, v in existing_values(cfg, a, fake).items()}
     column = {"tools": "Current Paid Tools", "spend": "Est. Monthly Software Spend", "industry": "Industry",
               "source": "Lead Source", "website_status": "Website Status", "priority": "Priority",
-              "batch": "Import Batch"}
+              "batch": "Import Batch", "budget": "Budget Range"}
     return {column[c]: (", ".join(v) if isinstance(v, list) else v) for c, v in vals.items() if c in column}
 
 
@@ -457,6 +475,9 @@ def close_csv_rows(cfg: Config, assessments: list[Assessment]) -> list[dict]:
             "BL Close %": round(a.close_probability * 100, 1), "BL Software": a.software_label,
             "BL Category": cfg.categories.get(b.category, {}).get("label", b.category), "BL Channel": a.channel,
             **_existing_csv(cfg, a),
+            "BL Website Score": a.web_score, "BL Opportunities": ", ".join(a.opportunities),
+            "BL Project Value": round(a.project_value) if a.project_value else None,
+            "BL Year-1 Value": round(a.first_year_value, 2),
         })
     return rows
 

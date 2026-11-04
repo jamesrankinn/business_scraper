@@ -81,9 +81,64 @@ close % = min + (max − min) × switchability × decision_maker × fit ^ fit_ex
 
 Permanently closed businesses, and franchises if `exclude_franchises: true`, get 0%.
 
-## 5. Expected monthly value and tiers
+## 5. Expected monthly value
 
-`EMV = price × close %`. Tiers: **A** ≥ $30, **B** ≥ $15, **C** ≥ $6, **D** below that, **X** excluded.
+`EMV = price × close %`: the booking subscription this lead is worth per month, on average, if you
+pitch it.
+
+## 6. Website audit and agency services
+
+**Website audit** (`beauty_leads/enrich/audit.py`): the homepage starts at 100 and loses points for
+what owners and their clients notice:
+
+| Issue | Points |
+|---|---|
+| Not mobile-friendly (no responsive layout) | −25 |
+| No HTTPS ("Not secure" warning) | −20 |
+| Footer © year 5+ years old / 3–4 years old | −20 / −15 |
+| Outdated code (`<font>`, frames, Flash, jQuery 1.x) | −10 |
+| WordPress older than 5.x | −10 |
+| No online booking | −10 |
+| No tap-to-call link, generic title, no meta description, basic template builder (GoDaddy/Weebly) | −5 each |
+| No main heading, no schema markup, most images without alt text | −3 each |
+| No share preview image, no Instagram link | −2 each |
+
+Status: **Good** ≥ 75, **Decent** ≥ 50, **Outdated** below 50. **No Website** covers no site at all,
+Instagram-only, a parked or "coming soon" page, or a Vagaro/Booksy page used as the website. A site
+that is down or has a broken SSL certificate counts as Outdated. A site that blocks the check (HTTP
+403) is left unscored rather than guessed.
+
+**Services to pitch** (`our_product.services`, labelled like Services Interested in Close):
+
+| Service | When |
+|---|---|
+| New Website | No Website |
+| Website Redesign | Outdated |
+| Online Booking | no online booking found |
+| Tool Replacement / Integration | pays for booking software they'd switch from (switchability ≥ 0.5), or 2+ paid tools |
+| Forms & Intake | med spa, massage, tattoo, lash, and no form tool detected |
+| Memberships / Subscriptions | tanning, massage, med spa, lash, esthetics |
+| Payments / E-commerce | site has a shop / gift card link but no store platform |
+| Email Marketing | no Mailchimp/Klaviyo and 150+ reviews |
+| SEO | Outdated/Decent site missing title, description or schema |
+| Hosting & Maintenance | with a new site or redesign |
+
+**Website close %** uses the same formula as section 4, but the switchability gate is replaced by
+how open their website status makes them (`scoring.web_openness`): No Website 0.8, Outdated 0.7,
+Decent 0.35, Good 0.15. It's then scaled down when the project costs more than their estimated
+website budget (1.5% of revenue). So a shop that loves Boulevard but has a 2016 website is still a
+real website lead.
+
+`expected project value = website close % × (project fees + 12 × monthly service fees)`
+
+## 7. First-year value and tiers
+
+`Year 1 = 12 × EMV + expected project value`. Leads are sorted and tiered by it: **A** ≥ $1,200,
+**B** ≥ $750, **C** ≥ $350, **D** below, **X** excluded. Set `scoring.rank_by: monthly` to rank by
+EMV alone (tiers A ≥ $30, B ≥ $15, C ≥ $6).
+
+**The service prices in `our_product.services` are placeholders.** Put your real project and
+monthly fees in before trusting Year 1.
 
 ## Worked example
 

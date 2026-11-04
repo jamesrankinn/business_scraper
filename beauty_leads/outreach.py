@@ -10,6 +10,8 @@ Nothing here sends messages. You review and send each one yourself:
 
 from __future__ import annotations
 
+import re
+
 from .config import Config
 from .scoring import NO_SOFTWARE_STATES, Assessment
 
@@ -23,6 +25,50 @@ def _money(x: float | None) -> str:
     if x is None:
         return "?"
     return f"${round(x / 5) * 5:,.0f}"
+
+
+# Audit issue (start of text) -> how you'd say it to the owner.
+ISSUE_PHRASES = [
+    ("Not mobile-friendly", "it isn't mobile-friendly"),
+    ("No HTTPS", "browsers flag it as \"Not secure\""),
+    ("Footer still says", None),  # quoted as-is, e.g. "the footer still says © 2017"
+    ("Website didn't load", "it didn't load when I tried it"),
+    ("Domain shows a parked", "your domain only shows a placeholder page"),
+    ("Outdated code", "it's running on some old code"),
+    ("Runs an old WordPress", "it's on an old version of WordPress"),
+    ("No tap-to-call", "there's no tap-to-call button for phones"),
+    ("Generic or missing page title", "it's missing a few basics Google looks for"),
+    ("No meta description", "it's missing a few basics Google looks for"),
+]
+
+
+def site_line(cfg: Config, a: Assessment, nouns: str) -> str:
+    """One friendly sentence about their website, only when it's a real opening."""
+    if a.web_status == "No Website":
+        if a.software == "social_only":
+            return (f"I also noticed you don't have a website yet, just Instagram. We build simple sites for "
+                    f"{nouns} that show your services and take bookings, if that's ever useful.")
+        if a.issues_platform_page:
+            return (f"Right now your {a.software_label} page is doing the job of a website. We build sites for "
+                    f"{nouns} that put your brand first, if that's ever on your list.")
+        return f"I couldn't find a website for you either. We build simple sites for {nouns} too, if that's ever useful."
+    if a.web_status != "Outdated":
+        return ""
+    said: list[str] = []
+    for issue in a.web_issues:
+        for prefix, phrase in ISSUE_PHRASES:
+            if issue.startswith(prefix):
+                text = phrase or ("the f" + issue[1:] if issue.startswith("Footer") else issue)
+                if text not in said:
+                    said.append(text)
+                break
+        if len(said) == 2:
+            break
+    if not said:
+        return ""
+    found = " and ".join(said)
+    return (f"I also took a quick look at your website: {found}. We rebuild sites for {nouns} too, "
+            f"if that's ever on your list.")
 
 
 def message_group(cfg: Config, a: Assessment) -> str:
@@ -62,7 +108,15 @@ def draft(cfg: Config, a: Assessment) -> dict:
         software=a.software_label, spend=_money(a.current_spend), price=_money(a.suggested_price),
         savings=_money(a.savings) if a.savings and a.savings > 0 else "$0", **_sender(cfg),
     )
-    body = (tpl.get("email_body", "") + (cfg.outreach.get("email_footer") or "")).format_map(values)
+    line = site_line(cfg, a, noun + "s")
+    values["site_line"] = line
+    main = tpl.get("email_body", "")
+    if line and "{site_line}" not in main:
+        # Slot the website sentence in before the closing question.
+        paras = main.strip("\n").split("\n\n")
+        main = "\n\n".join(paras[:-1] + ["{site_line}", paras[-1]]) + "\n" if len(paras) > 1 else main + "\n{site_line}\n"
+    body = (main + (cfg.outreach.get("email_footer") or "")).format_map(values)
+    body = re.sub(r"\n{3,}", "\n\n", body)
     return {
         "message_group": group,
         "email_subject": tpl.get("email_subject", "").format_map(values),

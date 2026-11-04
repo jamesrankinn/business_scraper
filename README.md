@@ -4,7 +4,10 @@ Finds barbershops, hair salons, nail salons, tanning studios, lash/brow, estheti
 and med spa businesses across British Columbia, works out which booking software each one uses
 (Vagaro, Fresha, Booksy, Square, Squire, Jane, GlossGenius…), estimates what they pay for it and what
 they can afford, and ranks every business by **expected monthly value**: what the lead is worth to
-you per month if you pitch it. It then drafts a tailored email or Instagram DM for each lead.
+you per month if you pitch it. It also audits each shop's website (mobile-friendly, HTTPS, stale copyright year, Google
+basics, old code), flags which of your services they need (new site, redesign, online booking,
+forms, memberships, SEO…), and ranks leads by **first-year value**: booking subscription plus
+website work. It then drafts a tailored email or Instagram DM for each lead.
 
 ```
  collect                 merge               enrich                        score              export
@@ -176,7 +179,9 @@ with no online booking hears about a booking link for their bio. Edit the wordin
 ## The decision matrix
 
 See **[docs/DECISION_MATRIX.md](docs/DECISION_MATRIX.md)** for the full method and a worked example.
-In short:
+Leads are ranked by **Year 1** = 12 × expected monthly value + expected value of website work.
+**Set your real service prices in `our_product.services` (the defaults are placeholders).** The
+monthly part, in short:
 
 ```
 expected monthly value = our price × close %
@@ -264,15 +269,16 @@ holding the pitch, the "why", and the drafted DM and email.
 | Est. Monthly Software Spend | Estimated monthly cost of all of those, in CAD |
 | Industry | Beauty & Wellness |
 | Lead Source | Google Maps, or Other |
-| Website Status | No Website, when they only have Instagram or nothing |
+| Website Status | From the website audit: No Website / Outdated / Decent / Good |
+| Budget Range | Estimated website budget, 1.5% of estimated revenue |
 | Priority | Tier A → Hot, B → Warm, C/D → Cold |
 | Import Batch | `<date> beauty-leads` |
 
 These are written once, when the lead is created. After that they're yours to edit.
 
 The tool also creates its own fields for what Close doesn't have: **Beauty Leads ID, BL Tier, BL
-Expected MRR, BL Our Price, BL Close %, BL Software, BL Category, BL Channel, Instagram** and
-**Reported Staff**. Build Smart Views on them, for example "BL Tier is A and BL Channel is instagram"
+Expected MRR, BL Our Price, BL Close %, BL Software, BL Category, BL Channel, Instagram, BL Website
+Score, BL Opportunities, BL Project Value, BL Year-1 Value** and **Reported Staff**. Build Smart Views on them, for example "BL Tier is A and BL Channel is instagram"
 for today's DM list.
 
 * **No duplicates.** Before creating a lead, the push looks for one with the same Beauty Leads ID,

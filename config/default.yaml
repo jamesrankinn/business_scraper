@@ -318,13 +318,21 @@ close:
     spend: Est. Monthly Software Spend       # estimated $/mo for all of those (CAD)
     industry: Industry
     source: Lead Source
-    website_status: Website Status           # set to "No Website" when they have none / Instagram only
+    website_status: Website Status           # from the website audit: No Website / Outdated / Decent / Good
     priority: Priority
     batch: Import Batch
+    budget: Budget Range                     # estimated website budget (from revenue)
   industry_value: Beauty & Wellness
   source_by_origin: {google: Google Maps, default: Other}
   priority_by_tier: {A: Hot, B: Warm, C: Cold, D: Cold}
   batch_label: beauty-leads                  # Import Batch = "<date> beauty-leads"
+  # Estimated website budget -> your "Budget Range" choice (first that fits).
+  budget_ranges:
+    - [1000, "Under $1,000"]
+    - [2500, "$1,000–$2,500"]
+    - [5000, "$2,500–$5,000"]
+    - [10000, "$5,000–$10,000"]
+    - [999999999, "$10,000+"]
   # Detected software/tool -> choice in "Current Paid Tools". Anything not
   # listed (Booksy, GlossGenius, Squire, Jane...) becomes other_tool_choice.
   # Add those as choices in Close and map them here to track them by name.
@@ -369,6 +377,26 @@ our_product:
     undercut_pct: 0.20
     min_of_list: 0.6            # don't chase a cheap competitor below 60% of list
     max_over_list: 1.5
+  # Agency services you can pitch. PLACEHOLDER PRICES: replace with yours.
+  # `project` = one-time fee, `monthly` = recurring. Labels match the
+  # "Services Interested" choices in your Close.
+  services:
+    new_website:      {label: New Website, project: 2500, monthly: 0}
+    website_redesign: {label: Website Redesign, project: 3000, monthly: 0}
+    online_booking:   {label: Online Booking, project: 500, monthly: 0}
+    tool_replacement: {label: Tool Replacement / Integration, project: 750, monthly: 0}
+    forms_intake:     {label: Forms & Intake, project: 400, monthly: 0}
+    memberships:      {label: Memberships / Subscriptions, project: 750, monthly: 0}
+    payments:         {label: Payments / E-commerce, project: 1500, monthly: 0}
+    email_marketing:  {label: Email Marketing, project: 500, monthly: 0}
+    seo:              {label: SEO, project: 0, monthly: 300}
+    hosting:          {label: Hosting & Maintenance, project: 0, monthly: 50}
+  # Clients come back on a cycle (packages, fills): pitch memberships.
+  membership_categories: [tanning, massage, med_spa, lash_brow, esthetics_spa]
+  # Need intake, consent or health-history forms: pitch Forms & Intake.
+  intake_categories: [med_spa, massage, tattoo, lash_brow]
+  # Share of annual revenue a shop might put into a website project.
+  web_budget_pct_of_revenue: 0.015
   sweet_spot_staff: [2, 15]     # team sizes you serve best
   months_retained: 30           # expected customer lifetime (for LTV)
 
@@ -411,5 +439,14 @@ scoring:
   # email and Instagram DMs, your main outreach channels.
   reachability: {email: 0.4, instagram: 0.35, phone: 0.15, website: 0.1}
   exclude_franchises: false
-  # Tier thresholds on expected monthly value (CAD/mo)
-  tiers: {A: 30, B: 15, C: 6}
+  # Website audit score (0-100) -> "Website Status".
+  website_status: {good: 75, decent: 50}
+  # How open a shop is to website work, by website status. Plays the role
+  # switchability plays for booking software.
+  web_openness: {"No Website": 0.8, Outdated: 0.7, Decent: 0.35, Good: 0.15, unknown: 0.4}
+  # How leads are ranked and tiered:
+  #   first_year  12 x expected monthly value + expected project value (agency)
+  #   monthly     expected monthly value only (booking subscription)
+  rank_by: first_year
+  tiers: {A: 30, B: 15, C: 6}                  # used with rank_by: monthly (CAD/mo)
+  first_year_tiers: {A: 1200, B: 750, C: 350}  # used with rank_by: first_year (CAD)

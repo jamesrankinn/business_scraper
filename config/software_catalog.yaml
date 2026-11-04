@@ -372,7 +372,7 @@ tools:
   wix:           {label: Wix, monthly: 27, needles: [wixstatic.com, parastorage.com, wixsite.com]}
   squarespace:   {label: Squarespace, monthly: 25, needles: [squarespace-cdn.com, sqspcdn.com, static1.squarespace.com]}
   shopify:       {label: Shopify, monthly: 39, needles: [cdn.shopify.com, myshopify.com]}
-  wordpress:     {label: WordPress, monthly: 25, needles: ["/wp-content/", "/wp-includes/"]}
+  wordpress:     {label: WordPress, monthly: 25, needles: ["/wp-content/", "/wp-includes/", "content=\"wordpress"]}
   godaddy:       {label: GoDaddy, monthly: 15, needles: [img1.wsimg.com, godaddysites.com]}
   weebly:        {label: Weebly, monthly: 12, needles: [editmysite.com, weebly.com]}
   webflow:       {label: Webflow, monthly: 23, needles: [website-files.com, webflow.io]}

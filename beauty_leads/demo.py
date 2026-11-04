@@ -59,6 +59,17 @@ DEMO = [
     ("Glow Lab Medical Aesthetics", "medical_spa", "Surrey", "15300 Croydon Dr", 175, 4.6, "EXPENSIVE", "vagaro", None),
 ]
 
+# A spread of website audit results (fictional), cycled through the demo shops.
+DEMO_AUDITS = [
+    {"score": 84, "status": "Good", "issues": ["No preview image when the link is shared"], "has_shop": False},
+    {"score": 35, "status": "Outdated", "has_shop": False,
+     "issues": ["Not mobile-friendly (no responsive layout)", "Footer still says © 2017", "No tap-to-call phone link"]},
+    {"score": 62, "status": "Decent", "has_shop": True,
+     "issues": ["No meta description (Google shows a random snippet)", "No tap-to-call phone link"]},
+    {"score": 28, "status": "Outdated", "has_shop": False,
+     "issues": ["No HTTPS: browsers label the site 'Not secure'", "Outdated code (jQuery 1.x)", "Footer still says © 2016"]},
+]
+
 FINGERPRINT_URL = {
     "vagaro": "https://www.vagaro.com/{slug}",
     "fresha": "https://www.fresha.com/a/{slug}",
@@ -110,6 +121,7 @@ def build_demo(cfg: Config, db: Database) -> None:
             elif software == "none_detected":
                 checks[key] = {"status": "ok", "software": "none_detected", "confidence": None, "evidence": [],
                                "site_builder": "wix", "tools": ["wix"],
+                               "audit": {**DEMO_AUDITS[i % 4], "issues": DEMO_AUDITS[i % 4]["issues"] + ["No online booking"]},
                                "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"} if i % 2 else {},
                                "emails": [f"hello@{slug}.example"],
                                # One site asks not to be solicited, so CASL routes it away from email.
@@ -119,6 +131,7 @@ def build_demo(cfg: Config, db: Database) -> None:
                 checks[key] = {"status": "ok", "software": software, "confidence": "high",
                                "evidence": [f'"Book now" button: {url}'], "site_builder": "squarespace",
                                "tools": ["squarespace", "mailchimp"] if i % 2 else ["squarespace"],
+                               "audit": DEMO_AUDITS[i % 4],
                                "socials": {"instagram": f"https://instagram.com/{_handle(slug)}"},
                                "emails": [f"bookings@{slug}.example"] if i % 3 else []}
         if i % 4 != 0 and name.upper() not in {r.name for r in registry}:

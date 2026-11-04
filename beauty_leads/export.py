@@ -14,7 +14,7 @@ from .outreach import draft, outreach_rows, sender_is_configured
 from .scoring import Assessment, accounts, market_summary
 
 LEAD_COLUMNS = [
-    "tier", "expected_mrr_cad", "potential_mrr_cad", "close_probability", "fit_score",
+    "tier", "first_year_value_cad", "expected_mrr_cad", "potential_mrr_cad", "close_probability", "fit_score",
     "name", "category", "city", "address", "channel", "email", "email_ok", "instagram", "instagram_url",
     "phone", "website",
     "software", "software_confidence", "current_spend_cad", "current_spend_source",
@@ -23,6 +23,8 @@ LEAD_COLUMNS = [
     "software_budget_cad", "rating", "reviews", "price_level", "years_registered", "entity_type",
     "chain_locations", "franchise", "site_builder", "ltv_cad", "pitch", "why", "software_evidence",
     "no_solicitation", "close_status", "close_url",
+    "website_status", "website_score", "website_issues", "opportunities", "project_value_cad",
+    "services_monthly_cad", "web_budget_cad", "web_close_probability", "expected_project_value_cad",
     "excluded_reason", "google_maps_url", "sources", "chain_key", "business_key",
 ]
 
@@ -159,7 +161,8 @@ def write_xlsx(path: Path, leads: list[dict], accts: list[dict], summary: dict,
     ws.append(["BC beauty leads", datetime.now().strftime("%Y-%m-%d %H:%M")])
     ws["A1"].font = Font(bold=True, size=14)
     for k in ("locations", "live_locations", "accounts", "software_checked", "software_identified",
-              "potential_mrr_cad", "expected_mrr_cad"):
+              "potential_mrr_cad", "expected_mrr_cad", "expected_project_value_cad", "first_year_value_cad",
+              "needs_website"):
         ws.append([k.replace("_", " "), summary.get(k)])
     ws.append([])
     ws.append(["Software", "Locations", "Est. current spend CAD/mo", "Our potential MRR", "Expected MRR"])
@@ -170,6 +173,18 @@ def write_xlsx(path: Path, leads: list[dict], accts: list[dict], summary: dict,
     ws.append([])
     ws.append(["Tier", "Locations"])
     for t, n in summary["by_tier"].items():
+        ws.append([t, n])
+    ws.append([])
+    ws.append(["Website status", "Locations"])
+    for cell in ws[ws.max_row]:
+        cell.font, cell.fill = head_font, head_fill
+    for t, n in summary.get("by_website_status", {}).items():
+        ws.append([t, n])
+    ws.append([])
+    ws.append(["Service to pitch", "Locations"])
+    for cell in ws[ws.max_row]:
+        cell.font, cell.fill = head_font, head_fill
+    for t, n in summary.get("by_opportunity", {}).items():
         ws.append([t, n])
     ws.column_dimensions["A"].width = 36
     for col in "BCDE":
@@ -204,7 +219,10 @@ def render_html(cfg: Config, assessments: list[Assessment], summary: dict, demo:
             "channel", "email_ok", "no_solicitation", "software",
             "software_confidence", "current_spend_cad", "our_price_cad", "savings_cad", "staff_est",
             "staff_source", "rating", "reviews", "years_registered", "chain_locations", "franchise",
-            "pitch", "why", "software_evidence", "excluded_reason", "google_maps_url")})
+            "pitch", "why", "software_evidence", "excluded_reason", "google_maps_url",
+            "first_year_value_cad", "website_status", "website_score", "opportunities", "project_value_cad",
+            "services_monthly_cad", "web_close_probability", "expected_project_value_cad")})
+        rows[-1]["website_issues"] = a.web_issues
         rows[-1]["category_label"] = cfg.categories.get(a.business.category, {}).get("label", a.business.category)
         rows[-1]["factors"] = {k: round(v, 2) for k, v in a.factors.items()}
         if not a.excluded_reason and a.channel != "none":
@@ -229,8 +247,17 @@ def render_html(cfg: Config, assessments: list[Assessment], summary: dict, demo:
     truncated = (f"<p class='note'>Showing the top {limit:,} of {len(assessments):,} locations. "
                  "The full list is in leads.csv / leads.xlsx.</p>") if len(assessments) > limit else ""
 
+    web_rows = "".join(f"<tr><td>{html.escape(k)}</td><td class='n'>{n:,}</td></tr>"
+                       for k, n in summary.get("by_website_status", {}).items())
+    opp_rows = "".join(f"<tr><td>{html.escape(k)}</td><td class='n'>{n:,}</td></tr>"
+                       for k, n in summary.get("by_opportunity", {}).items())
     data_json = json.dumps(rows).replace("</", "<\\/")
     body = REPORT_TEMPLATE.format(
+        first_year=_money(summary.get("first_year_value_cad")),
+        project=_money(summary.get("expected_project_value_cad")),
+        needs_website=f"{summary.get('needs_website', 0):,}",
+        web_rows=web_rows or "<tr><td colspan='2'>No websites checked yet</td></tr>",
+        opp_rows=opp_rows or "<tr><td colspan='2'>None yet</td></tr>",
         banner=banner,
         generated=generated,
         locations=f"{summary['live_locations']:,}",
@@ -334,10 +361,16 @@ input:focus-visible, select:focus-visible, button:focus-visible, th button:focus
 tr.detail td {{ background: var(--bg); }}
 .detail-grid {{ display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; padding: 6px 2px; }}
 .detail-grid p {{ margin: 0 0 8px; max-width: 70ch; }}
-.factors {{ display: grid; grid-template-columns: max-content 1fr max-content; gap: 4px 10px; align-items: center; font-size: 13px; }}
+.factors {{ display: grid; grid-template-columns: max-content 1fr max-content; gap: 4px 10px; align-items: center; align-content: start; align-self: start; font-size: 13px; }}
 .factors .track {{ height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }}
 .factors .fill {{ display: block; height: 100%; background: var(--accent); }}
 .contact {{ font-family: var(--mono); font-size: 13px; user-select: all; }}
+.chip.ws-no-website {{ color: var(--tier-x); border-color: var(--tier-x); background: var(--tier-x-bg); }}
+.chip.ws-outdated {{ color: var(--tier-c); border-color: var(--tier-c); background: var(--tier-c-bg); }}
+.chip.ws-decent {{ color: var(--tier-b); border-color: var(--tier-b); }}
+.chip.ws-good {{ color: var(--tier-a); border-color: var(--tier-a); }}
+.split {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 28px; }}
+.split > div {{ min-width: 0; }}
 .chip.ch-email {{ color: var(--tier-a); border-color: var(--tier-a); }}
 .chip.ch-instagram {{ color: var(--tier-b); border-color: var(--tier-b); }}
 .chip.ch-none {{ color: var(--tier-x); border-color: var(--tier-x); }}
@@ -361,12 +394,13 @@ a {{ color: var(--accent); }}
 <div class="wrap">
   <header>
     <h1>BC Beauty Leads</h1>
-    <span class="meta">Generated {generated} · all money CAD per month</span>
+    <span class="meta">Generated {generated} · all money CAD</span>
   </header>
   {banner}
   <section class="tiles" aria-label="Summary">
-    <div class="tile key"><span class="label">Expected monthly value</span><span class="value">{expected}</span><span class="sub">Our price × close probability, summed</span></div>
-    <div class="tile"><span class="label">Potential MRR</span><span class="value">{potential}</span><span class="sub">If every live location signed</span></div>
+    <div class="tile key"><span class="label">Expected first-year value</span><span class="value">{first_year}</span><span class="sub">12 × monthly + {project} in website projects</span></div>
+    <div class="tile"><span class="label">Expected monthly value</span><span class="value">{expected}</span><span class="sub">{potential}/mo if every live location signed</span></div>
+    <div class="tile"><span class="label">Need a better website</span><span class="value">{needs_website}</span><span class="sub">No website, or an outdated one</span></div>
     <div class="tile"><span class="label">Locations</span><span class="value">{locations}</span><span class="sub">{accounts} accounts after grouping chains</span></div>
     <div class="tile"><span class="label">Software identified</span><span class="value">{identified_pct}</span><span class="sub">{identified} named platforms · {checked} checked</span></div>
   </section>
@@ -379,6 +413,17 @@ a {{ color: var(--accent); }}
     </table></div>
   </section>
 
+  <section class="split">
+    <div>
+      <h2>Their websites</h2>
+      <div class="scroll"><table><thead><tr><th>Website status</th><th class="n">Locations</th></tr></thead><tbody>{web_rows}</tbody></table></div>
+    </div>
+    <div>
+      <h2>What to sell them</h2>
+      <div class="scroll"><table><thead><tr><th>Service</th><th class="n">Locations</th></tr></thead><tbody>{opp_rows}</tbody></table></div>
+    </div>
+  </section>
+
   <section>
     <h2>Leads</h2>
     <div class="filters">
@@ -387,6 +432,7 @@ a {{ color: var(--accent); }}
       <label for="f-cat">Category<select id="f-cat"><option value="">All</option></select></label>
       <label for="f-city">City<select id="f-city"><option value="">All</option></select></label>
       <label for="f-sw">Software<select id="f-sw"><option value="">All</option></select></label>
+      <label for="f-web">Website<select id="f-web"><option value="">All</option><option>No Website</option><option>Outdated</option><option>Decent</option><option>Good</option></select></label>
       <label for="f-ch">Reach via<select id="f-ch"><option value="">All</option><option value="email">Email</option><option value="instagram">Instagram</option><option value="phone">Phone only</option><option value="none">No contact</option></select></label>
     </div>
     <div class="scroll"><table id="leads">
@@ -394,11 +440,12 @@ a {{ color: var(--accent); }}
         <th><button data-k="tier">Tier</button></th>
         <th><button data-k="name">Business</button></th>
         <th><button data-k="software">Software</button></th>
+        <th><button data-k="website_score">Website</button></th>
         <th class="n"><button data-k="current_spend_cad">Pays now</button></th>
-        <th class="n"><button data-k="our_price_cad">Our price</button></th>
+        <th class="n hide-sm"><button data-k="our_price_cad">Our price</button></th>
         <th class="n hide-sm"><button data-k="close_probability">Close %</button></th>
-        <th class="n"><button data-k="expected_mrr_cad" aria-sort="descending">Expected</button></th>
-        <th class="n hide-sm"><button data-k="staff_est">Staff</button></th>
+        <th class="n hide-sm"><button data-k="expected_mrr_cad">Monthly</button></th>
+        <th class="n"><button data-k="first_year_value_cad" aria-sort="descending">Year 1</button></th>
       </tr></thead>
       <tbody></tbody>
     </table></div>
@@ -413,7 +460,9 @@ a {{ color: var(--accent); }}
       <p><b>Pays now</b> is the catalog list price of the software we found on their website, for that team size, with typical add-ons. Card processing fees are excluded.</p>
       <p><b>Our price</b> uses the {strategy} strategy: {undercut}% under what they pay now, or our list price (${base_price}/location plus extra staff) when they pay nothing.</p>
       <p><b>Close %</b> is {pmin}–{pmax}%, scaled by two gates that multiply (how winnable users of their software are, and whether the owner makes the call) and a weighted fit score (savings, affordability, size, volume, stability, reachability, category). Tap a lead to see its factors.</p>
-      <p><b>Expected</b> is our price × close %: what this lead is worth per month, on average, if you pitch it. Sort by it to decide who to call first.</p>
+      <p><b>Monthly</b> is our price × close %: the booking subscription this lead is worth per month, on average, if you pitch it.</p>
+      <p><b>Website</b> is a 0–100 audit of their homepage: mobile-friendly, HTTPS, copyright year, Google basics, tap-to-call, old code. Below 50 is Outdated. Instagram-only or parked counts as No Website.</p>
+      <p><b>Year 1</b> is 12 × Monthly plus the expected value of the website services they need (project fees + 12 months of any monthly service), weighted by how open their website status makes them. Leads are sorted and tiered by it.</p>
     </div>
   </section>
 </div>
@@ -423,7 +472,7 @@ a {{ color: var(--accent); }}
   const CATS = {cat_labels};
   const $ = (s) => document.querySelector(s);
   const tbody = $("#leads tbody");
-  let sortKey = "expected_mrr_cad", sortDir = -1;
+  let sortKey = "first_year_value_cad", sortDir = -1;
   const open = new Set();
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({{"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}}[c]));
   const money = (x) => x == null ? "—" : "$" + Math.round(x).toLocaleString("en-CA");
@@ -447,9 +496,13 @@ a {{ color: var(--accent); }}
       d.instagram_url ? `<a href="${{esc(d.instagram_url)}}" target="_blank" rel="noopener">instagram</a>` : "",
       d.google_maps_url ? `<a href="${{esc(d.google_maps_url)}}" target="_blank" rel="noopener">map</a>` : "",
     ].filter(Boolean).join(" · ");
-    return `<tr class="detail"><td colspan="8"><div class="detail-grid">
+    const web = d.website_status ? `<p><b>Website:</b> ${{esc(d.website_status)}}${{d.website_score != null && d.website_status !== "No Website" ? ` (${{d.website_score}}/100)` : ""}}${{(d.website_issues || []).length ? ": " + esc(d.website_issues.join("; ")) : ""}}</p>` : "";
+    const opps = d.opportunities ? `<p><b>Sell them:</b> ${{esc(d.opportunities)}}${{d.project_value_cad ? ` (~${{money(d.project_value_cad)}} one-time` + (d.services_monthly_cad ? ` + ${{money(d.services_monthly_cad)}}/mo` : "") + `, ${{(d.web_close_probability * 100).toFixed(0)}}% likely)` : ""}}</p>` : "";
+    return `<tr class="detail"><td colspan="9"><div class="detail-grid">
       <div>
         ${{d.pitch ? `<p><b>Pitch:</b> ${{esc(d.pitch)}}</p>` : ""}}
+        ${{web}}
+        ${{opps}}
         <p><b>Why:</b> ${{esc(d.why)}}</p>
         ${{d.software_evidence ? `<p class="sub2">Evidence: ${{esc(d.software_evidence)}}</p>` : ""}}
         ${{d.excluded_reason ? `<p><b>Excluded:</b> ${{esc(d.excluded_reason)}}</p>` : ""}}
@@ -465,10 +518,10 @@ a {{ color: var(--accent); }}
 
   function render() {{
     const q = $("#q").value.trim().toLowerCase();
-    const tier = $("#f-tier").value, cat = $("#f-cat").value, city = $("#f-city").value, sw = $("#f-sw").value, ch = $("#f-ch").value;
+    const tier = $("#f-tier").value, cat = $("#f-cat").value, city = $("#f-city").value, sw = $("#f-sw").value, ch = $("#f-ch").value, web = $("#f-web").value;
     const rows = DATA.filter((d) =>
       (!tier || d.tier === tier) && (!cat || d.category === cat) && (!city || d.city === city) && (!sw || d.software === sw) &&
-      (!ch || d.channel === ch) &&
+      (!ch || d.channel === ch) && (!web || d.website_status === web) &&
       (!q || [d.name, d.city, d.phone, d.email, d.instagram, d.address, d.software].join(" ").toLowerCase().includes(q)));
     rows.sort((a, b) => {{
       const x = a[sortKey], y = b[sortKey];
@@ -484,11 +537,12 @@ a {{ color: var(--accent); }}
         <td><span class="pill t-${{esc(d.tier)}}">${{esc(d.tier)}}</span></td>
         <td><div class="biz">${{esc(d.name)}}</div><div class="sub2">${{esc(sub)}} <span class="chip ch-${{esc(d.channel)}}">${{esc(reach)}}</span></div></td>
         <td>${{esc(d.software)}}${{d.software_confidence ? ` <span class="chip">${{esc(d.software_confidence)}}</span>` : ""}}</td>
+        <td>${{d.website_status ? `<span class="chip ws-${{esc(d.website_status.replace(" ", "-").toLowerCase())}}">${{esc(d.website_status)}}${{d.website_score != null && d.website_status !== "No Website" ? " " + d.website_score : ""}}</span>` : '<span class="sub2">not checked</span>'}}</td>
         <td class="n">${{money(d.current_spend_cad)}}</td>
-        <td class="n">${{money(d.our_price_cad)}}</td>
+        <td class="n hide-sm">${{money(d.our_price_cad)}}</td>
         <td class="n hide-sm">${{(d.close_probability * 100).toFixed(0)}}%</td>
-        <td class="n strong">${{money(d.expected_mrr_cad)}}</td>
-        <td class="n hide-sm">${{d.staff_est ?? "—"}}</td></tr>`;
+        <td class="n hide-sm">${{money(d.expected_mrr_cad)}}</td>
+        <td class="n strong">${{money(d.first_year_value_cad)}}</td></tr>`;
       return row + (open.has(id) ? detail(d) : "");
     }}).join("");
     $("#count").textContent = `${{rows.length.toLocaleString("en-CA")}} matching locations` + (rows.length > 500 ? " (first 500 shown; narrow the filters to see more)" : "");
@@ -521,7 +575,7 @@ a {{ color: var(--accent); }}
     btn.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
     render();
   }}));
-  ["#q", "#f-tier", "#f-cat", "#f-city", "#f-sw", "#f-ch"].forEach((s) => $(s).addEventListener("input", render));
+  ["#q", "#f-tier", "#f-cat", "#f-city", "#f-sw", "#f-ch", "#f-web"].forEach((s) => $(s).addEventListener("input", render));
   render();
 }})();
 </script>"""
